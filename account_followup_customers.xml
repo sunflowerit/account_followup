@@ -58,8 +58,6 @@
             </field>
         </record>
 
-
-
         <record id="action_customer_followup" model="ir.actions.act_window">
             <field name="name">Manual Follow-Ups</field>
             <field name="view_id" ref="customer_followup_tree"/>
@@ -68,6 +66,7 @@
             <field name="view_mode">tree,form</field>
             <field name="domain">[('payment_amount_due', '>', 0.0)]</field> 
             <field name="context">{'Followupfirst':True, 'search_default_todo': True} </field>
+            <field name="auto_search">True</field>
             <field name="search_view_id" ref="customer_followup_search_view"/>
         </record>
 

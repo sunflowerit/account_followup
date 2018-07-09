@@ -66,6 +66,7 @@ class followup_line(models.Model):
         lang = self.env.user.lang
         for line in self:
             print(line)
+            print("description")
             if line.description:
                 try:
                     line.description % {'partner_name': '', 'date':'', 'user_signature': '', 'company_name': ''}

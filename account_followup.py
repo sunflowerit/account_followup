@@ -40,10 +40,10 @@ class account_move_line(models.Model):
 
     def _get_result(self):
         print(self)
-        res = {}
+        print("result")
+        res = 0
         for aml in self:
-            res[aml.id] = aml.debit - aml.credit
-        return res
+            aml.result = aml.debit - aml.credit
 
     _inherit = 'account.move.line'
 

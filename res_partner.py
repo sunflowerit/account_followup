@@ -41,6 +41,7 @@ class res_partner(models.Model):
     #def _get_latest(self, names, arg, company_id=None):
     def _get_latest(self):
         print(self)
+        print("latest")
         res={}
         company = self.env.user.company_id
         for partner in self:
@@ -95,9 +96,7 @@ class res_partner(models.Model):
         #wizard_partner_ids are ids from special view, not from res.partner
         if not wizard_partner_ids:
             return {}
-        print(data)
         data['partner_ids'] = wizard_partner_ids
-        print(data)
         datas = {
              'ids': wizard_partner_ids,
              'model': 'account_followup.followup',
@@ -219,7 +218,6 @@ class res_partner(models.Model):
         #return self.write(ids, {'payment_next_action_date': False, 'payment_next_action':'', 'payment_responsible_id': False})
 
     def do_button_print(self):
-        assert(len(ids) == 1)
         company_id = self.env['res.users'].browse(uid).company_id.id
         #search if the partner has accounting entries to print. If not, it may not be present in the
         #psql view the report is based on, so we need to stop the user here.
@@ -245,29 +243,52 @@ class res_partner(models.Model):
         #call the print overdue report on this partner
         return self.do_partner_print(wizard_partner_ids, data)
 
-    def _get_amounts_and_date(self):
+    def _get_amounts_due(self):
+        print(self)
+        print("haha due")
+        company = self.env.user.company_id
+        for partner in self:
+            amount_due = 0.0
+            print(partner.unreconciled_aml_ids)
+            for aml in partner.unreconciled_aml_ids:
+                if (aml.company_id == company):
+                    amount_due += aml.result
+            partner.payment_amount_due = amount_due
+            print("Amount : {}".format(amount_due))
+        return amount_due
+
+    def _get_amounts_overdue(self):
         '''
         Function that computes values for the followup functional fields. Note that 'payment_amount_due'
         is similar to 'credit' field on res.partner except it filters on user's company.
         '''
-        res = {}
         company = self.env.user.company_id
         current_date = fields.Date.context_today(self)
         for partner in self:
+            amount_overdue = 0.0
+            for aml in partner.unreconciled_aml_ids:
+                if (aml.company_id == company):
+                    date_maturity = aml.date_maturity or aml.date
+                    if (date_maturity <= current_date):
+                        amount_overdue += aml.result
+            partner.payment_amount_overdue = amount_overdue
+        return amount_overdue
+
+    def _get_earliest_due_date(self):
+        '''
+        Function that computes values for the followup functional fields. Note that 'payment_amount_due'
+        is similar to 'credit' field on res.partner except it filters on user's company.
+        '''
+        company = self.env.user.company_id
+        for partner in self:
             worst_due_date = False
-            amount_due = amount_overdue = 0.0
             for aml in partner.unreconciled_aml_ids:
                 if (aml.company_id == company):
                     date_maturity = aml.date_maturity or aml.date
                     if not worst_due_date or date_maturity < worst_due_date:
                         worst_due_date = date_maturity
-                    amount_due += aml.result
-                    if (date_maturity <= current_date):
-                        amount_overdue += aml.result
-            res[partner.id] = {'payment_amount_due': amount_due, 
-                               'payment_amount_overdue': amount_overdue, 
-                               'payment_earliest_due_date': worst_due_date}
-        return res
+                partner.payment_earliest_due_date = worst_due_date
+        return worst_due_date
 
     def _get_followup_overdue_query(self, args, overdue_only=False):
         '''
@@ -347,9 +368,11 @@ class res_partner(models.Model):
         return [('id','in', [x[0] for x in res])]
 
     @api.model
+    @api.depends("unreconciled_aml_ids")
     def _get_partners(self, ids):
         #this function search for the partners linked to all account.move.line 'ids' that have been changed
         partners = set()
+        print("haha")
         print(self)
         for aml in self:
             if aml.partner_id:
@@ -370,34 +393,38 @@ class res_partner(models.Model):
                                          "gets a follow-up level that requires a manual action. "
                                          "Can be practical to set manually e.g. to see if he keeps "
                                          "his promises.")
-    unreconciled_aml_ids = fields.One2many('account.move.line', 'partner_id', domain=['&', ('full_reconcile_id', '=', False), '&', ('account_id.user_type_id', '=', 1)])
+    unreconciled_aml_ids = fields.One2many('account.move.line', 'partner_id', domain=['&', ('full_reconcile_id', '=', False), '&', ('user_type_id', '=', 1)])
     latest_followup_date = fields.Date(compute="_get_latest", method=True, string="Latest Follow-up Date", 
                             help="Latest date that the follow-up level of the partner was changed", 
                             store=False, multi="latest")
-    payment_amount_due = fields.Float(compute="_get_amounts_and_date", 
+    payment_amount_due = fields.Float(compute="_get_amounts_due", 
                                                  string="Amount Due",
-                                                 store = True, multi="followup", 
+                                                 store = False, multi="followup", 
                                                  fnct_search=_payment_due_search)
-    payment_amount_overdue = fields.Float(compute="_get_amounts_and_date", string="Amount Overdue",
-                                                 store = True, multi="followup", 
+    payment_amount_overdue = fields.Float(compute="_get_amounts_overdue", string="Amount Overdue",
+                                                 store = False, multi="followup", 
                                                  fnct_search = _payment_overdue_search)
-    payment_earliest_due_date = fields.Date(compute="_get_amounts_and_date", string = "Worst Due Date",
+    payment_earliest_due_date = fields.Date(compute="_get_earliest_due_date", string = "Worst Due Date",
                                                     multi="followup",
                                                     fnct_search=_payment_earliest_date_search)
     latest_followup_level_id = fields.Many2one('account_followup.followup.line', compute="_get_latest", method=True,
-            string="Latest Follow-up Level", 
+            string="Latest Follow-up Level",
             help="The maximum follow-up level", 
-            store={
-                'res.partner': (lambda self, cr, uid, ids, c: ids,[],10),
-                'account.move.line': (_get_partners, ['followup_line_id'], 10),
-            }, 
+            store= False,
+            #store={
+                #'res.partner': (lambda self, cr, uid, ids, c: ids,[],10),
+                #'account.move.line': (lambda self, cr, uid, ids, c: ids, ['followup_line_id'], 10),
+                #'account.move.line': (_get_partners, ['followup_line_id'], 10),
+            #}, 
             multi="latest")
     latest_followup_level_id_without_lit = fields.Many2one('account_followup.followup.line', compute="_get_latest", method=True, 
             string="Latest Follow-up Level without litigation", 
             help="The maximum follow-up level without taking into account the account move lines with litigation", 
-            store={
-                'res.partner': (lambda self, cr, uid, ids, c: ids,[],10),
-                'account.move.line': (_get_partners, ['followup_line_id'], 10),
-            }, 
+            store=False,
+            #store={
+                #'res.partner': (lambda self, cr, uid, ids, c: ids,[],10),
+                #'account.move.line': (lambda self, cr, uid, ids, c: ids, ['followup_line_id'], 10),
+                #'account.move.line': (_get_partners, ['followup_line_id'], 10),
+            #}, 
             multi="latest")
 

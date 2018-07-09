@@ -51,18 +51,18 @@ class report_rappel(report_sxw.rml_parse):
         return self._lines_get_with_partner(stat_by_partner_line.partner_id, stat_by_partner_line.company_id.id)
 
     def _lines_get_with_partner(self, partner, company_id):
+        receivable_id = self.env["account.account.type"].search([("name", "=", "Receivable")]).id
         moveline_obj = self.env['account.move.line']
         moveline_ids = moveline_obj.search([
                             ('partner_id', '=', partner.id),
-                            ('account_id.type', '=', 'receivable'),
+                            ('account_id.user_type_id', '=', receivable_id),
                             ('reconciled', '=', False),
                             ('company_id', '=', company_id),
-                            '|', ('date_maturity', '=', False), ('date_maturity', '<=', fields.Date.context_today(self, self.cr, self.uid)),
+                            '|', ('date_maturity', '=', False), ('date_maturity', '<=', fields.Date.today()),
                         ])
-
         # lines_per_currency = {currency: [line data, ...], ...}
         lines_per_currency = defaultdict(list)
-        for line in moveline_obj.browse(moveline_ids):
+        for line in moveline_ids:
             currency = line.currency_id or line.company_id.currency_id
             line_data = {
                 'name': line.move_id.name,
@@ -75,6 +75,7 @@ class report_rappel(report_sxw.rml_parse):
             }
             lines_per_currency[currency].append(line_data)
 
+        print("yay")
         return [{'line': lines, 'currency': currency} for currency, lines in lines_per_currency.items()]
 
     def _get_text(self, stat_line, followup_id, context=None):
@@ -110,7 +111,7 @@ class report_rappel(report_sxw.rml_parse):
                 'partner_name': stat_line.partner_id.name,
                 'date': time.strftime(date_format),
                 'company_name': stat_line.company_id.name,
-                'user_signature': self.env['res.users'].browse(context).signature or '',
+                'user_signature': self.env.user.signature or '',
             }
         return text
 
