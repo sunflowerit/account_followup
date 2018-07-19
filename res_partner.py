@@ -126,7 +126,7 @@ class res_partner(models.Model):
                     self.message_post([partner.id], body=_('Overdue email sent to %s' % ', '.join(['%s <%s>' % (partner.name, partner.email) for partner in partners_to_email])))
             else:
                 unknown_mails = unknown_mails + 1
-                action_text = _("Email not sent because of email address of partner not filled inn")
+                action_text = _("Email not sent because of email address of partner not filled in")
                 if partner.payment_next_action_date:
                     payment_action_date = min(fields.Date.context_today(self), partner.payment_next_action_date)
                 else:
@@ -198,8 +198,7 @@ class res_partner(models.Model):
                 if part.payment_responsible_id <> vals["payment_responsible_id"]:
                     #Find partner_id of user put as responsible
                     responsible_partner_id = self.env["res.users"].browse(vals['payment_responsible_id']).partner_id.id
-                    self.env["mail.thread"].message_post(0, 
-                                      body = _("You became responsible to do the next action for the payment follow-up of") + " <b><a href='#id=" + str(part.id) + "&view_type=form&model=res.partner'> " + part.name + " </a></b>",
+                    self.env["mail.thread"].message_post(body = _("You became responsible to do the next action for the payment follow-up of") + " <b><a href='#id=" + str(part.id) + "&view_type=form&model=res.partner'> " + part.name + " </a></b>",
                                       type = 'comment',
                                       subtype = "mail.mt_comment", context = self.env.context,
                                       model = 'res.partner', res_id = part.id, 
@@ -227,7 +226,6 @@ class res_partner(models.Model):
         self.message_post(body=_('Printed overdue payments report'))
         #build the id of this partner in the psql view. Could be replaced by a search with [('company_id', '=', company_id),('partner_id', '=', ids[0])]
         wizard_partner_ids = [self.id * 10000 + company_id]
-        print(wizard_partner_ids)
         followup_ids = self.env['account_followup.followup'].search([('company_id', '=', company_id)])
         if not followup_ids:
             raise UserError(_('Error!'),_("There is no followup plan defined for the current company."))
