@@ -51,7 +51,7 @@ class report_rappel(report_sxw.rml_parse):
         return self._lines_get_with_partner(stat_by_partner_line.partner_id, stat_by_partner_line.company_id.id)
 
     def _lines_get_with_partner(self, partner, company_id):
-        receivable_id = self.env["account.account.type"].search([("name", "=", "Receivable")]).id
+        receivable_id = 1
         moveline_obj = self.env['account.move.line']
         moveline_ids = moveline_obj.search([
                             ('partner_id', '=', partner.id),
@@ -76,6 +76,7 @@ class report_rappel(report_sxw.rml_parse):
             lines_per_currency[currency].append(line_data)
 
         print("yay")
+        print(moveline_ids)
         return [{'line': lines, 'currency': currency} for currency, lines in lines_per_currency.items()]
 
     def _get_text(self, stat_line, followup_id, context=None):

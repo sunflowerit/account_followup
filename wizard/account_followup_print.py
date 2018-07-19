@@ -143,6 +143,7 @@ class account_followup_print(models.TransientModel):
         nbunknownmails = 0
         nbprints = 0
         resulttext = " "
+        print(partner_ids)
         for partner in self.env['account_followup.stat.by.partner'].browse(partner_ids):
             if partner.max_followup_id.manual_action:
                 partner_obj.do_partner_manual_action([partner.partner_id.id])
@@ -153,7 +154,7 @@ class account_followup_print(models.TransientModel):
                 else:
                     manuals[key] = manuals[key] + 1
             if partner.max_followup_id.send_email:
-                nbunknownmails += partner_obj.do_partner_mail([partner.partner_id.id])
+                partner.partner_id.do_partner_mail()
                 nbmails += 1
             if partner.max_followup_id.send_letter:
                 partner_ids_to_print.append(partner.id)
@@ -191,10 +192,8 @@ class account_followup_print(models.TransientModel):
     def clear_manual_actions(self, partner_list):
         # Partnerlist is list to exclude
         # Will clear the actions of partners that have no due payments anymore
-        print(partner_list)
         #partner_list_ids = [partner.partner_id.id for partner in self.env['account_followup.stat.by.partner'].browse(partner_list)]
         partner_list_ids = []
-        print(partner_list_ids)
         if len(partner_list_ids) == 0:
             partner_list_ids = [-1]
         partner_ids = self.env['res.partner'].search(['&', ('id', 'not in', partner_list_ids), '|', 
@@ -205,7 +204,7 @@ class account_followup_print(models.TransientModel):
         for part in partner_ids:
             if not part.unreconciled_aml_ids: 
                 partners_to_clear.append(part.id)
-        self.env['res.partner'].action_done(partners_to_clear)
+                part.action_done()
         return len(partners_to_clear)
 
     def do_process(self):
@@ -213,6 +212,7 @@ class account_followup_print(models.TransientModel):
 
         #Get partners
         tmp = self._get_partners_followp(self)
+        print(tmp)
         partner_list = tmp['partner_ids']
         to_update = tmp['to_update']
         date = self.date
@@ -288,7 +288,8 @@ class account_followup_print(models.TransientModel):
 
         partner_list = []
         to_update = {}
-        
+        print(move_lines)
+        print(fups)
         #Fill dictionary of accountmovelines to_update with the partners that need to be updated
         for partner_id, followup_line_id, date_maturity,date, id in move_lines:
             if not partner_id:

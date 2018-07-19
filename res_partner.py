@@ -38,10 +38,7 @@ class res_partner(models.Model):
             res['arch'] = etree.tostring(doc, encoding="utf-8")
         return res'''
 
-    #def _get_latest(self, names, arg, company_id=None):
     def _get_latest(self):
-        print(self)
-        print("latest")
         res={}
         company = self.env.user.company_id
         for partner in self:
@@ -90,7 +87,6 @@ class res_partner(models.Model):
             partner.payment_next_action_date = action_date
             partner.payment_next_action = action_text
             partner.payment_responsible_id = responsible_id
-            #self.write([partner.id], {'payment_next_action_date': action_date,'payment_next_action': action_text,'payment_responsible_id': responsible_id})
 
     def do_partner_print(self, wizard_partner_ids, data):
         #wizard_partner_ids are ids from special view, not from res.partner
@@ -102,17 +98,17 @@ class res_partner(models.Model):
              'model': 'account_followup.followup',
              'form': data
         }
+        print(datas)
         return self.env['report'].get_action([], 'account_followup.report_followup', data=datas)
 
     @api.cr_uid_ids_context
-    def do_partner_mail(self, partner_ids):
+    def do_partner_mail(self):
         ctx = self.env.context.copy()
         ctx['followup'] = True
-        #partner_ids are res.partner ids
         # If not defined by latest follow-up level, it will be the default template if it can find it
         mtp = self.env['mail.template']
         unknown_mails = 0
-        for partner in self.browse(partner_ids):
+        for partner in self:
             partners_to_email = [child for child in partner.child_ids if child.type == 'invoice' and child.email]
             if not partners_to_email and partner.email:
                 partners_to_email = [partner]
@@ -126,10 +122,11 @@ class res_partner(models.Model):
                                                         'account_followup', 'email_template_account_followup_default')
                         mtp.send_mail(mail_template_id[1], partner_to_email.id)
                 if partner not in partners_to_email:
+                    print(partner)
                     self.message_post([partner.id], body=_('Overdue email sent to %s' % ', '.join(['%s <%s>' % (partner.name, partner.email) for partner in partners_to_email])))
             else:
                 unknown_mails = unknown_mails + 1
-                action_text = _("Email not sent because of email address of partner not filled in")
+                action_text = _("Email not sent because of email address of partner not filled inn")
                 if partner.payment_next_action_date:
                     payment_action_date = min(fields.Date.context_today(self), partner.payment_next_action_date)
                 else:
@@ -140,7 +137,6 @@ class res_partner(models.Model):
                     payment_next_action = action_text
                 partner.payment_next_action_date = payment_action_date
                 partner.payment_next_action = payment_next_action
-                #self.write([partner.id], {'payment_next_action_date': payment_action_date, 'payment_next_action': payment_next_action})
         return unknown_mails
 
     def get_followup_table_html(self):
@@ -198,7 +194,7 @@ class res_partner(models.Model):
 
     def write(self, vals):
         if vals.get("payment_responsible_id", False):
-            for part in self.browse(ids):
+            for part in self:
                 if part.payment_responsible_id <> vals["payment_responsible_id"]:
                     #Find partner_id of user put as responsible
                     responsible_partner_id = self.env["res.users"].browse(vals['payment_responsible_id']).partner_id.id
@@ -210,51 +206,46 @@ class res_partner(models.Model):
                                       partner_ids = [responsible_partner_id])
         return super(res_partner, self).write(vals)
 
-    def action_done(self, ids):
-        for partner in self.browse(ids):
+    def action_done(self):
+        for partner in self:
             partner.payment_next_action_date = False
             partner.payment_next_action = ''
             partner.payment_responsible_id = False
-        #return self.write(ids, {'payment_next_action_date': False, 'payment_next_action':'', 'payment_responsible_id': False})
 
     def do_button_print(self):
-        company_id = self.env['res.users'].browse(uid).company_id.id
+        company_id = self.env.user.company_id.id
         #search if the partner has accounting entries to print. If not, it may not be present in the
         #psql view the report is based on, so we need to stop the user here.
         if not self.env['account.move.line'].search([
-                                                                   ('partner_id', '=', ids[0]),
+                                                                   ('partner_id', '=', self.id),
                                                                    ('account_id.user_type_id', '=', 1),
                                                                    ('full_reconcile_id', '=', False),
-                                                                   ('state', '!=', 'draft'),
                                                                    ('company_id', '=', company_id),
-                                                                   '|', ('date_maturity', '=', False), ('date_maturity', '<=', fields.Date.context_today(self, cr, uid)),
+                                                                   '|', ('date_maturity', '=', False), ('date_maturity', '<=', fields.Date.today()),
                                                                   ]):
             raise UserError(_('Error!'),_("The partner does not have any accounting entries to print in the overdue report for the current company."))
-        self.message_post([ids[0]], body=_('Printed overdue payments report'))
+        self.message_post(body=_('Printed overdue payments report'))
         #build the id of this partner in the psql view. Could be replaced by a search with [('company_id', '=', company_id),('partner_id', '=', ids[0])]
-        wizard_partner_ids = [ids[0] * 10000 + company_id]
+        wizard_partner_ids = [self.id * 10000 + company_id]
+        print(wizard_partner_ids)
         followup_ids = self.env['account_followup.followup'].search([('company_id', '=', company_id)])
         if not followup_ids:
             raise UserError(_('Error!'),_("There is no followup plan defined for the current company."))
         data = {
             'date': fields.Date.today(),
-            'followup_id': followup_ids[0],
+            'followup_id': followup_ids[0].id,
         }
         #call the print overdue report on this partner
         return self.do_partner_print(wizard_partner_ids, data)
 
     def _get_amounts_due(self):
-        print(self)
-        print("haha due")
         company = self.env.user.company_id
         for partner in self:
             amount_due = 0.0
-            print(partner.unreconciled_aml_ids)
             for aml in partner.unreconciled_aml_ids:
                 if (aml.company_id == company):
                     amount_due += aml.result
             partner.payment_amount_due = amount_due
-            print("Amount : {}".format(amount_due))
         return amount_due
 
     def _get_amounts_overdue(self):
@@ -304,7 +295,7 @@ class res_partner(models.Model):
             * the arguments for the execution of this query
         :rtype: (string, [])
         '''
-        company_id = self.env['res.users'].browse(uid).company_id.id
+        company_id = self.env.user.company_id.id
         having_where_clause = ' AND '.join(map(lambda x: '(SUM(bal2) %s %%s)' % (x[1]), args))
         having_values = [x[2] for x in args]
         query = self.env['account.move.line']._query_get(context=self.env.context)
@@ -329,8 +320,8 @@ class res_partner(models.Model):
         if not args:
             return []
         query, query_args = self._get_followup_overdue_query(args, overdue_only=True)
-        cr.execute(query, query_args)
-        res = cr.fetchall()
+        self.env.cr.execute(query, query_args)
+        res = self.env.cr.fetchall()
         if not res:
             return [('id','=','0')]
         return [('id','in', [x[0] for x in res])]
@@ -338,11 +329,12 @@ class res_partner(models.Model):
     def _payment_earliest_date_search(self, obj, name, args):
         if not args:
             return []
-        company_id = self.env['res.users'].browse(uid).company_id.id
+        #company_id = self.env['res.users'].browse(uid).company_id.id
+        company_id = self.env.user.company_id.id
         having_where_clause = ' AND '.join(map(lambda x: '(MIN(l.date_maturity) %s %%s)' % (x[1]), args))
         having_values = [x[2] for x in args]
         query = self.env['account.move.line']._query_get(context=self.env.context)
-        cr.execute('SELECT partner_id FROM account_move_line l '\
+        self.env.cr.execute('SELECT partner_id FROM account_move_line l '\
                     'WHERE account_id IN '\
                         '(SELECT id FROM account_account '\
                         'WHERE user_type_id=1) '\
@@ -352,7 +344,7 @@ class res_partner(models.Model):
                     'AND partner_id IS NOT NULL '\
                     'GROUP BY partner_id HAVING '+ having_where_clause,
                      [company_id] + having_values)
-        res = cr.fetchall()
+        res = self.env.cr.fetchall()
         if not res:
             return [('id','=','0')]
         return [('id','in', [x[0] for x in res])]
@@ -361,8 +353,8 @@ class res_partner(models.Model):
         if not args:
             return []
         query, query_args = self._get_followup_overdue_query(args, overdue_only=False)
-        cr.execute(query, query_args)
-        res = cr.fetchall()
+        self.env.cr.execute(query, query_args)
+        res = self.env.cr.fetchall()
         if not res:
             return [('id','=','0')]
         return [('id','in', [x[0] for x in res])]
@@ -372,8 +364,6 @@ class res_partner(models.Model):
     def _get_partners(self, ids):
         #this function search for the partners linked to all account.move.line 'ids' that have been changed
         partners = set()
-        print("haha")
-        print(self)
         for aml in self:
             if aml.partner_id:
                 partners.add(aml.partner_id.id)
@@ -385,8 +375,7 @@ class res_partner(models.Model):
                                                  help="Optionally you can assign a user to this field, which will make him responsible for the action.", copy=False)
     payment_note = fields.Text('Customer Payment Promise', help="Payment Note", track_visibility="onchange", copy=False)
     payment_next_action = fields.Text('Next Action', copy=False,
-                                    help="This is the next action to be taken.  It will automatically be set when the partner gets a follow-up level that requires a manual action. ", 
-                                    track_visibility="onchange")
+                                    help="This is the next action to be taken.  It will automatically be set when the partner gets a follow-up level that requires a manual action. ")
     payment_next_action_date = fields.Date('Next Action Date', copy=False,
                                     help="This is when the manual follow-up is needed. "
                                          "The date will be set to the current date when the partner "

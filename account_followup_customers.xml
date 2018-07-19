@@ -85,10 +85,10 @@
                             <button name="do_partner_mail" type="object" string="Send Overdue Email" groups="account.group_account_user"
                                 help="If not specified by the latest follow-up level, it will send from the default email template" attrs="{'invisible':[('payment_amount_due', '&lt;=', 0.0)]}"/>
                         </div>
-                        <!--<p attrs="{'invisible':[('latest_followup_date','=', False)]}">
+                        <p attrs="{'invisible':[('latest_followup_date','=', False)]}">
                             The <field name="latest_followup_date"  class = "oe_inline"/>, the latest payment follow-up
                             was: <field name="latest_followup_level_id" class="oe_inline"/>
-                        </p>-->
+                        </p>
                         <group>
                             <field name="payment_responsible_id" placeholder="Responsible of credit collection" class="oe_inline"/>
                             <label for="payment_next_action"/>

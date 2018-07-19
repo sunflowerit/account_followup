@@ -39,8 +39,6 @@ class followup(models.Model):
 class account_move_line(models.Model):
 
     def _get_result(self):
-        print(self)
-        print("result")
         res = 0
         for aml in self:
             aml.result = aml.debit - aml.credit
