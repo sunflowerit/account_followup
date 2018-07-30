@@ -98,7 +98,6 @@ class res_partner(models.Model):
              'model': 'account_followup.followup',
              'form': data
         }
-        print(datas)
         return self.env['report'].get_action([], 'account_followup.report_followup', data=datas)
 
     @api.cr_uid_ids_context
@@ -122,7 +121,6 @@ class res_partner(models.Model):
                                                         'account_followup', 'email_template_account_followup_default')
                         mtp.send_mail(mail_template_id[1], partner_to_email.id)
                 if partner not in partners_to_email:
-                    print(partner)
                     self.message_post([partner.id], body=_('Overdue email sent to %s' % ', '.join(['%s <%s>' % (partner.name, partner.email) for partner in partners_to_email])))
             else:
                 unknown_mails = unknown_mails + 1
@@ -132,7 +130,10 @@ class res_partner(models.Model):
                 else:
                     payment_action_date = fields.Date.context_today(self)
                 if partner.payment_next_action:
-                    payment_next_action = partner.payment_next_action + " \n " + action_text
+                    if action_text not in partner.payment_next_action:
+                        payment_next_action = partner.payment_next_action + " \n" + action_text
+                    else:
+                        payment_next_action = partner.payment_next_action
                 else:
                     payment_next_action = action_text
                 partner.payment_next_action_date = payment_action_date
@@ -369,12 +370,12 @@ class res_partner(models.Model):
 
     _inherit = "res.partner"
     
-    payment_responsible_id = fields.Many2one('res.users', string='Follow-up Responsible', 
+    payment_responsible_id = fields.Many2one('res.users', string='Responsable du suivi', 
                                                  help="Optionally you can assign a user to this field, which will make him responsible for the action.", copy=False)
     payment_note = fields.Text('Customer Payment Promise', help="Payment Note", track_visibility="onchange", copy=False)
-    payment_next_action = fields.Text('Next Action', copy=False,
+    payment_next_action = fields.Text('Prochaine action', copy=False,
                                     help="This is the next action to be taken.  It will automatically be set when the partner gets a follow-up level that requires a manual action. ")
-    payment_next_action_date = fields.Date('Next Action Date', copy=False,
+    payment_next_action_date = fields.Date('Date de prochain action', copy=False,
                                     help="This is when the manual follow-up is needed. "
                                          "The date will be set to the current date when the partner "
                                          "gets a follow-up level that requires a manual action. "
@@ -391,7 +392,7 @@ class res_partner(models.Model):
     payment_amount_overdue = fields.Float(compute="_get_amounts_overdue", string="Amount Overdue",
                                                  store = False, multi="followup", 
                                                  fnct_search = _payment_overdue_search)
-    payment_earliest_due_date = fields.Date(compute="_get_earliest_due_date", string = "Worst Due Date",
+    payment_earliest_due_date = fields.Date(compute="_get_earliest_due_date", string = "Pire date d'échéance",
                                                     multi="followup",
                                                     fnct_search=_payment_earliest_date_search)
     latest_followup_level_id = fields.Many2one('account_followup.followup.line', compute="_get_latest", method=True,

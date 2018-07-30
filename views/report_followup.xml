@@ -15,9 +15,9 @@
                     </div>
 
                     <p>
-                        Document: Customer account statement<br/>
+                        Document: Relevé de compte du client<br/>
                         Date: <span t-esc="formatLang(data['form']['date'], date=True)"/><br/>
-                        Customer ref: <span t-field="o.partner_id.ref"/>
+                        Référence du client: <span t-field="o.partner_id.ref"/>
                     </p>
 
                     <p t-raw="get_text(o,data['form']['followup_id']).replace('\n', '&lt;br&gt;')"/>
@@ -26,11 +26,11 @@
                         <table class="table table-condensed" style="margin-top: 50px;">
                             <thead>
                                 <tr>
-                                    <th>Invoice Date</th>
+                                    <th>Date de facture</th>
                                     <th>Description</th>
                                     <th class="text-center">Ref</th>
-                                    <th class="text-center">Maturity Date</th>
-                                    <th class="text-right">Amount</th>
+                                    <th class="text-center">Date d'échéance</th>
+                                    <th class="text-right">Montant</th>
                                     <th class="text-center">Li.</th>
                                 </tr>
                             </thead>

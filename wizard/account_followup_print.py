@@ -142,8 +142,8 @@ class account_followup_print(models.TransientModel):
         nbmails = 0
         nbunknownmails = 0
         nbprints = 0
-        resulttext = " "
-        print(partner_ids)
+        size = 80
+        resulttext = "<div style='height:{}px'>"
         for partner in self.env['account_followup.stat.by.partner'].browse(partner_ids):
             if partner.max_followup_id.manual_action:
                 partner_obj.do_partner_manual_action([partner.partner_id.id])
@@ -171,9 +171,11 @@ class account_followup_print(models.TransientModel):
             needprinting = True
         resulttext += "<p align=\"center\">"
         for item in manuals:
-            resulttext = resulttext + "<li>" + item + ":" + str(manuals[item]) +  "\n </li>"
-        resulttext += "</p>"
+            resulttext = resulttext + "<li>" + item + ": " + str(manuals[item]) +  "\n </li>"
+            size = size + 20
+        resulttext += "</p></div>"
         result = {}
+        resulttext = resulttext.format(size)
         action = partner_obj.do_partner_print(partner_ids_to_print, data)
         result['needprinting'] = needprinting
         result['resulttext'] = resulttext
@@ -212,7 +214,6 @@ class account_followup_print(models.TransientModel):
 
         #Get partners
         tmp = self._get_partners_followp(self)
-        print(tmp)
         partner_list = tmp['partner_ids']
         to_update = tmp['to_update']
         date = self.date
@@ -288,8 +289,6 @@ class account_followup_print(models.TransientModel):
 
         partner_list = []
         to_update = {}
-        print(move_lines)
-        print(fups)
         #Fill dictionary of accountmovelines to_update with the partners that need to be updated
         for partner_id, followup_line_id, date_maturity,date, id in move_lines:
             if not partner_id:

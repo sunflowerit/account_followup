@@ -30,7 +30,6 @@ class report_rappel(report_sxw.rml_parse):
 
     def __init__(self, cr, uid, name, context):
         super(report_rappel, self).__init__(cr, uid, name, context=context)
-        print(context)
         self.localcontext.update({
             'time': time,
             'ids_to_objects': self._ids_to_objects,
@@ -75,8 +74,6 @@ class report_rappel(report_sxw.rml_parse):
             }
             lines_per_currency[currency].append(line_data)
 
-        print("yay")
-        print(moveline_ids)
         return [{'line': lines, 'currency': currency} for currency, lines in lines_per_currency.items()]
 
     def _get_text(self, stat_line, followup_id, context=None):
