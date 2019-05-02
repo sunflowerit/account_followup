@@ -21,7 +21,7 @@
 
 {
     'name': 'Payment Follow-up Management',
-    'version': '1.0',
+    'version': '10.0.1.0.0',
     'category': 'Accounting & Finance',
     'description': """
 Module to automate letters for unpaid invoices, with multi-level recalls.
@@ -43,7 +43,7 @@ Note that if you want to check the follow-up level for a given partner/account e
     Reporting / Accounting / **Follow-ups Analysis
 
 """,
-    'author': 'OpenERP SA',
+    'author': 'OpenERP SA, Sunflower IT',
     'website': 'https://www.odoo.com/page/billing',
     'depends': ['account','account_accountant', 'mail','sale'],
     'data': [

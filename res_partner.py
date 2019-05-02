@@ -19,14 +19,15 @@
 #
 ##############################################################################
 
-from odoo import api
-from odoo import fields, models
-from lxml import etree
+from odoo import fields, models, api
 from odoo.tools.translate import _
+from odoo.exceptions import UserError
 
-class res_partner(models.Model):
 
-    '''def fields_view_get(self, view_id=None, view_type=None, toolbar=False, submenu=False):
+class ResPartner(models.Model):
+    _inherit = "res.partner"
+
+    """def fields_view_get(self, view_id=None, view_type=None, toolbar=False, submenu=False):
         res = super(res_partner, self).fields_view_get(view_id=view_id, view_type=view_type,
                                                        toolbar=toolbar, submenu=submenu)
         context = context or {}
@@ -36,7 +37,7 @@ class res_partner(models.Model):
             root = first_node[0].getparent()
             root.insert(0, first_node[0])
             res['arch'] = etree.tostring(doc, encoding="utf-8")
-        return res'''
+        return res"""
 
     def _get_latest(self):
         res={}
@@ -98,7 +99,8 @@ class res_partner(models.Model):
              'model': 'account_followup.followup',
              'form': data
         }
-        return self.env['report'].get_action([], 'account_followup.report_followup', data=datas)
+        return self.env['report'].get_action(
+            [], 'account_followup.report_followup', data=datas)
 
     @api.cr_uid_ids_context
     def do_partner_mail(self):
@@ -196,15 +198,19 @@ class res_partner(models.Model):
     def write(self, vals):
         if vals.get("payment_responsible_id", False):
             for part in self:
-                if part.payment_responsible_id <> vals["payment_responsible_id"]:
+                if part.payment_responsible_id != vals["payment_responsible_id"]:
                     #Find partner_id of user put as responsible
-                    responsible_partner_id = self.env["res.users"].browse(vals['payment_responsible_id']).partner_id.id
-                    self.env["mail.thread"].message_post(body = _("You became responsible to do the next action for the payment follow-up of") + " <b><a href='#id=" + str(part.id) + "&view_type=form&model=res.partner'> " + part.name + " </a></b>",
-                                      type = 'comment',
-                                      subtype = "mail.mt_comment", context = self.env.context,
-                                      model = 'res.partner', res_id = part.id, 
-                                      partner_ids = [responsible_partner_id])
-        return super(res_partner, self).write(vals)
+                    responsible_partner_id = self.env["res.users"].browse(
+                        vals['payment_responsible_id']).partner_id.id
+                    self.env["mail.thread"].message_post(
+                        body=_("You became responsible to do the next action "
+                        "for the payment follow-up of") + " <b><a href='#id=" +
+                        str(part.id) + "&view_type=form&model=res.partner'> " +
+                        part.name + " </a></b>", type='comment',
+                        subtype="mail.mt_comment", context=self.env.context,
+                        model='res.partner', res_id=part.id,
+                        partner_ids=[responsible_partner_id])
+        return super(ResPartner, self).write(vals)
 
     def action_done(self):
         for partner in self:
@@ -216,20 +222,21 @@ class res_partner(models.Model):
         company_id = self.env.user.company_id.id
         #search if the partner has accounting entries to print. If not, it may not be present in the
         #psql view the report is based on, so we need to stop the user here.
-        if not self.env['account.move.line'].search([
-                                                                   ('partner_id', '=', self.id),
-                                                                   ('account_id.user_type_id', '=', 1),
-                                                                   ('full_reconcile_id', '=', False),
-                                                                   ('company_id', '=', company_id),
-                                                                   '|', ('date_maturity', '=', False), ('date_maturity', '<=', fields.Date.today()),
-                                                                  ]):
+        if not self.env['account.move.line'].search(
+            [('partner_id', '=', self.id), ('account_id.user_type_id', '=', 1),
+             ('full_reconcile_id', '=', False), ('company_id', '=', company_id),
+             '|', ('date_maturity', '=', False),
+             ('date_maturity', '<=', fields.Date.today())]
+        ):
             raise UserError(_('Error!'),_("The partner does not have any accounting entries to print in the overdue report for the current company."))
         self.message_post(body=_('Printed overdue payments report'))
         #build the id of this partner in the psql view. Could be replaced by a search with [('company_id', '=', company_id),('partner_id', '=', ids[0])]
         wizard_partner_ids = [self.id * 10000 + company_id]
         followup_ids = self.env['account_followup.followup'].search([('company_id', '=', company_id)])
         if not followup_ids:
-            raise UserError(_('Error!'),_("There is no followup plan defined for the current company."))
+            raise UserError(
+                _('Error!'),
+                _("There is no followup plan defined for the current company."))
         data = {
             'date': fields.Date.today(),
             'followup_id': followup_ids[0].id,
@@ -248,10 +255,12 @@ class res_partner(models.Model):
         return amount_due
 
     def _get_amounts_overdue(self):
-        '''
-        Function that computes values for the followup functional fields. Note that 'payment_amount_due'
-        is similar to 'credit' field on res.partner except it filters on user's company.
-        '''
+        """
+        Function that computes values for the followup functional fields.
+        Note that 'payment_amount_due'
+        is similar to 'credit' field on res.partner except it filters on user's
+         company.
+        """
         company = self.env.user.company_id
         current_date = fields.Date.context_today(self)
         for partner in self:
@@ -265,10 +274,12 @@ class res_partner(models.Model):
         return amount_overdue
 
     def _get_earliest_due_date(self):
-        '''
-        Function that computes values for the followup functional fields. Note that 'payment_amount_due'
-        is similar to 'credit' field on res.partner except it filters on user's company.
-        '''
+        """
+        Function that computes values for the followup functional fields.
+        Note that 'payment_amount_due'
+        is similar to 'credit' field on res.partner except it filters on user's
+        company.
+        """
         company = self.env.user.company_id
         for partner in self:
             worst_due_date = False
@@ -281,23 +292,29 @@ class res_partner(models.Model):
         return worst_due_date
 
     def _get_followup_overdue_query(self, args, overdue_only=False):
-        '''
-        This function is used to build the query and arguments to use when making a search on functional fields
+        """
+        This function is used to build the query and arguments to use when
+        making a search on functional fields
             * payment_amount_due
             * payment_amount_overdue
-        Basically, the query is exactly the same except that for overdue there is an extra clause in the WHERE.
+        Basically, the query is exactly the same except that for overdue there
+        is an extra clause in the WHERE.
 
-        :param args: arguments given to the search in the usual domain notation (list of tuples)
-        :param overdue_only: option to add the extra argument to filter on overdue accounting entries or not
+        :param args: arguments given to the search in the usual domain notation
+            (list of tuples)
+        :param overdue_only: option to add the extra argument to filter on
+         overdue accounting entries or not
         :returns: a tuple with
             * the query to execute as first element
             * the arguments for the execution of this query
         :rtype: (string, [])
-        '''
+        """
         company_id = self.env.user.company_id.id
-        having_where_clause = ' AND '.join(map(lambda x: '(SUM(bal2) %s %%s)' % (x[1]), args))
+        having_where_clause = ' AND '.join(
+            map(lambda x: '(SUM(bal2) %s %%s)' % (x[1]), args))
         having_values = [x[2] for x in args]
-        query = self.env['account.move.line']._query_get(context=self.env.context)
+        query = self.env['account.move.line']._query_get(
+            context=self.env.context)
         overdue_only_str = overdue_only and 'AND date_maturity <= NOW()' or ''
         return ('''SELECT pid AS partner_id, SUM(bal2) FROM
                     (SELECT CASE WHEN bal IS NOT NULL THEN bal
@@ -313,7 +330,8 @@ class res_partner(models.Model):
                     AND ''' + query + ''') AS l
                     RIGHT JOIN res_partner p
                     ON p.id = partner_id ) AS pl
-                    GROUP BY pid HAVING ''' + having_where_clause, [company_id] + having_values)
+                    GROUP BY pid HAVING ''' + having_where_clause, [company_id]
+                        + having_values)
 
     def _payment_overdue_search(self, obj, name, args):
         if not args:
@@ -368,33 +386,40 @@ class res_partner(models.Model):
                 partners.add(aml.partner_id.id)
         return self
 
-    _inherit = "res.partner"
-    
-    payment_responsible_id = fields.Many2one('res.users', string='Responsable du suivi', 
-                                                 help="Optionally you can assign a user to this field, which will make him responsible for the action.", copy=False)
-    payment_note = fields.Text('Customer Payment Promise', help="Payment Note", track_visibility="onchange", copy=False)
-    payment_next_action = fields.Text('Prochaine action', copy=False,
-                                    help="This is the next action to be taken.  It will automatically be set when the partner gets a follow-up level that requires a manual action. ")
-    payment_next_action_date = fields.Date('Date de prochain action', copy=False,
-                                    help="This is when the manual follow-up is needed. "
-                                         "The date will be set to the current date when the partner "
-                                         "gets a follow-up level that requires a manual action. "
-                                         "Can be practical to set manually e.g. to see if he keeps "
-                                         "his promises.")
-    unreconciled_aml_ids = fields.One2many('account.move.line', 'partner_id', domain=['&', ('full_reconcile_id', '=', False), '&', ('user_type_id', '=', 1)])
-    latest_followup_date = fields.Date(compute="_get_latest", method=True, string="Latest Follow-up Date", 
-                            help="Latest date that the follow-up level of the partner was changed", 
-                            store=False, multi="latest")
-    payment_amount_due = fields.Float(compute="_get_amounts_due", 
-                                                 string="Amount Due",
-                                                 store = False, multi="followup", 
-                                                 fnct_search=_payment_due_search)
-    payment_amount_overdue = fields.Float(compute="_get_amounts_overdue", string="Amount Overdue",
-                                                 store = False, multi="followup", 
-                                                 fnct_search = _payment_overdue_search)
-    payment_earliest_due_date = fields.Date(compute="_get_earliest_due_date", string = "Pire date d'échéance",
-                                                    multi="followup",
-                                                    fnct_search=_payment_earliest_date_search)
+    payment_responsible_id = fields.Many2one(
+        'res.users', string='Responsible', help="Optionally you can "
+        "assign a user to this field, which will make him responsible for the "
+        "action.", copy=False)
+    payment_note = fields.Text(
+        'Customer Payment Promise', help="Payment Note",
+        track_visibility="onchange", copy=False)
+    payment_next_action = fields.Text(
+        'Next Action', copy=False, help="This is the next action to be taken. "
+        "It will automatically be set when the partner gets a follow-up level "
+        "that requires a manual action. ")
+    payment_next_action_date = fields.Date(
+        'Date of next action', copy=False, help="This is when the manual "
+        "follow-up is needed. The date will be set to the current date when "
+        "the partner gets a follow-up level that requires a manual action. "
+        "Can be practical to set manually e.g. to see if he keeps "
+        "his promises.")
+    unreconciled_aml_ids = fields.One2many(
+        'account.move.line', 'partner_id', domain=[
+            '&', ('full_reconcile_id', '=', False), '&',
+            ('user_type_id', '=', 1)])
+    latest_followup_date = fields.Date(
+        compute="_get_latest", method=True, string="Latest Follow-up Date",
+        help="Latest date that the follow-up level of the partner was changed",
+        multi="latest")
+    payment_amount_due = fields.Float(
+        compute="_get_amounts_due", string="Amount Due", multi="followup",
+        fnct_search=_payment_due_search)
+    payment_amount_overdue = fields.Float(
+        compute="_get_amounts_overdue", string="Amount Overdue",
+        multi="followup", fnct_search=_payment_overdue_search)
+    payment_earliest_due_date = fields.Date(
+        compute="_get_earliest_due_date", string="Earliest Due Date",
+        multi="followup", fnct_search=_payment_earliest_date_search)
     latest_followup_level_id = fields.Many2one('account_followup.followup.line', compute="_get_latest", method=True,
             string="Latest Follow-up Level",
             help="The maximum follow-up level", 

@@ -21,42 +21,47 @@
 
 from odoo import api, tools
 from odoo import fields, models
-from lxml import etree
-from odoo.tools.translate import _
 
-class followup(models.Model):
+
+class AccountFollowup(models.Model):
     _name = 'account_followup.followup'
     _description = 'Account Follow-up'
     _rec_name = 'name'
 
-    followup_line = fields.One2many('account_followup.followup.line', 'followup_id', 'Follow-up', copy=True)
-    company_id = fields.Many2one('res.company', 'Company', required=True, default=lambda self: self.env['res.company']._company_default_get('account.invoice'))
-    name = fields.Char(related='company_id.name', string = "Name", readonly=True)
+    followup_line = fields.One2many(
+        'account_followup.followup.line', 'followup_id', 'Follow-up', copy=True)
+    company_id = fields.Many2one(
+        'res.company', 'Company', required=True,
+        default=lambda self: self.env['res.company']._company_default_get(
+            'account.invoice'))
+    name = fields.Char(
+        related='company_id.name', string = "Name", readonly=True)
 
     _sql_constraints = [('company_uniq', 'unique(company_id)', 'Only one follow-up per company is allowed')] 
 
 
-class account_move_line(models.Model):
+class AccountMoveLine(models.Model):
+    _inherit = 'account.move.line'
 
     def _get_result(self):
         res = 0
         for aml in self:
             aml.result = aml.debit - aml.credit
 
-    _inherit = 'account.move.line'
-
-    followup_line_id = fields.Many2one('account_followup.followup.line', 'Follow-up Level', 
-                                        ondelete='restrict') #restrict deletion of the followup line
+    followup_line_id = fields.Many2one(
+        'account_followup.followup.line', 'Follow-up Level',
+        ondelete='restrict')  # restrict deletion of the followup line
     followup_date = fields.Date('Latest Follow-up', index=True)
     
-    result = fields.Float(compute="_get_result", method=True, 
-                                string="Balance") #'balance' field is not the same
+    result = fields.Float(
+        compute="_get_result", method=True, string="Balance")
 
 
-class account_config_settings(models.TransientModel):
+class AccountConfigSettings(models.TransientModel):
     _name = 'account.config.settings'
     _inherit = 'account.config.settings'
-    
+
+    # TODO: this needs Enterprise!
     def open_followup_level_form(self):
         res_ids = self.env['account_followup.followup'].search([])
         
@@ -69,26 +74,26 @@ class account_config_settings(models.TransientModel):
          }
 
 
-class account_followup_stat(models.Model):
+class AccountFollowupStat(models.Model):
     _name = "account_followup.stat"
     _description = "Follow-up Statistics"
     _rec_name = 'partner_id'
+    _order = 'date_move'
     _auto = False
 
     partner_id = fields.Many2one('res.partner', 'Partner', readonly=True)
     date_move = fields.Date('First move', readonly=True)
     date_move_last = fields.Date('Last move', readonly=True)
     date_followup = fields.Date('Latest followup', readonly=True)
-    followup_id = fields.Many2one('account_followup.followup.line'
-                                    'Follow Ups', readonly=True, ondelete="cascade")
+    followup_id = fields.Many2one(
+        'account_followup.followup.line' 'Follow Ups', readonly=True,
+        ondelete="cascade")
     balance = fields.Float('Balance', readonly=True)
     debit = fields.Float('Debit', readonly=True)
     credit = fields.Float('Credit', readonly=True)
     company_id = fields.Many2one('res.company', 'Company', readonly=True)
     blocked = fields.Boolean('Blocked', readonly=True)
     period_id = fields.Many2one('account.period', 'Period', readonly=True)
-
-    _order = 'date_move'
 
     def search(self, args, offset=0, limit=None, order=None,
                 context=None, count=False):
@@ -98,7 +103,7 @@ class account_followup_stat(models.Model):
                 ids = self.env['account.fiscalyear'].read([current_year], ['period_ids'])[0]['period_ids']
                 args.append(['period_id','in',ids])
                 args.remove(arg)
-        return super(account_followup_stat, self).search(args=args, offset=offset, limit=limit, order=order,
+        return super(AccountFollowupStat, self).search(args=args, offset=offset, limit=limit, order=order,
             context=context, count=count)
 
     def read_group(self, domain, *args, **kwargs):
@@ -108,7 +113,7 @@ class account_followup_stat(models.Model):
                 ids = self.env['account.fiscalyear'].read([current_year], ['period_ids'])[0]['period_ids']
                 domain.append(['period_id','in',ids])
                 domain.remove(arg)
-        return super(account_followup_stat, self).read_group(domain, *args, **kwargs)
+        return super(AccountFollowupStat, self).read_group(domain, *args, **kwargs)
 
     def init(self):
         tools.drop_view_if_exists(self.env.cr, 'account_followup_stat')

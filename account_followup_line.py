@@ -19,12 +19,13 @@
 #
 ##############################################################################
 
-from odoo import api
 from odoo import fields, models
-from lxml import etree
-from odoo.tools.translate import _
 
-class followup_line(models.Model):
+
+class AccountFollowupLine(models.Model):
+    _name = 'account_followup.followup.line'
+    _description = 'Follow-up Criteria'
+    _order = 'delay'
 
     def _get_default_template(self):
         try:
@@ -36,31 +37,50 @@ class followup_line(models.Model):
         except ValueError:
             return False
 
-    _name = 'account_followup.followup.line'
-    _description = 'Follow-up Criteria'
-
     name = fields.Char('Follow-Up Action', required=True)
-    sequence = fields.Integer('Sequence', help="Gives the sequence order when displaying a list of follow-up lines.")
-    delay = fields.Integer('Due Days', help="The number of days after the due date of the invoice to wait before sending the reminder.  Could be negative if you want to send a polite alert beforehand.", required=True)
-    followup_id = fields.Many2one('account_followup.followup', 'Follow Ups', required=True, ondelete="cascade")
+    sequence = fields.Integer(
+        'Sequence', help="Gives the sequence order when displaying "
+        "a list of follow-up lines.")
+    delay = fields.Integer(
+        'Due Days', help="The number of days after the due date of the "
+        "invoice to wait before sending the reminder.  Could be negative "
+        "if you want to send a polite alert beforehand.", required=True)
+    followup_id = fields.Many2one(
+        'account_followup.followup', 'Follow Ups', required=True,
+        ondelete="cascade")
     description = fields.Text('Printed Message', translate=True, default="""
         Dear %(partner_name)s,
 
-        Exception made if there was a mistake of ours, it seems that the following amount stays unpaid. Please, take appropriate measures in order to carry out this payment in the next 8 days.
+        Exception made if there was a mistake of ours, it seems that the 
+        following amount stays unpaid. Please, take appropriate measures in 
+        order to carry out this payment in the next 8 days.
 
-        Would your payment have been carried out after this mail was sent, please ignore this message. Do not hesitate to contact our accounting department.
+        Would your payment have been carried out after this mail was sent, 
+        please ignore this message. Do not hesitate to contact our accounting 
+        department.
 
         Best Regards,
         """)
-    send_email = fields.Boolean('Send an Email', help="When processing, it will send an email", default="True")
-    send_letter = fields.Boolean('Send a Letter', help="When processing, it will print a letter", default="True")
-    manual_action = fields.Boolean('Manual Action', help="When processing, it will set the manual action to be taken for that customer. ", default="True")
-    manual_action_note = fields.Text('Action To Do', placeholder="e.g. Give a phone call, check with others , ...")
-    manual_action_responsible_id = fields.Many2one('res.users', 'Assign a Responsible', ondelete='set null')
-    email_template_id = fields.Many2one('mail.template', 'Email Template', ondelete='set null', default=_get_default_template)
+    send_email = fields.Boolean(
+        'Send an Email', help="When processing, it will send an email",
+        default="True")
+    send_letter = fields.Boolean(
+        'Send a Letter', help="When processing, it will print a letter",
+        default="True")
+    manual_action = fields.Boolean(
+        'Manual Action', help="When processing, it will set the manual "
+        "action to be taken for that customer. ", default="True")
+    manual_action_note = fields.Text(
+        'Action To Do', placeholder="e.g. Give a phone call, check "
+        "with others , ...")
+    manual_action_responsible_id = fields.Many2one(
+        'res.users', 'Assign a Responsible', ondelete='set null')
+    email_template_id = fields.Many2one(
+        'mail.template', 'Email Template', ondelete='set null',
+        default=_get_default_template)
 
-    _order = 'delay'
-    _sql_constraints = [('days_uniq', 'unique(followup_id, delay)', 'Days of the follow-up levels must be different')]
+    _sql_constraints = [('days_uniq', 'unique(followup_id, delay)',
+                        'Days of the follow-up levels must be different')]
 
     def _check_description(self):
         lang = self.env.user.lang
@@ -73,5 +93,7 @@ class followup_line(models.Model):
         return True
 
     _constraints = [
-        (_check_description, 'Your description is invalid, use the right legend or %% if you want to use the percent character.', ['description']),
+        (_check_description, 'Your description is invalid, use the right '
+            'legend or %% if you want to use the percent character.',
+            ['description']),
     ]

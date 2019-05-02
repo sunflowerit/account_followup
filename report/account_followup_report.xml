@@ -2,7 +2,7 @@
 <odoo>
     <data>
 
-      <record id="view_account_followup_stat_graph" model="ir.ui.view">
+        <record id="view_account_followup_stat_graph" model="ir.ui.view">
            <field name="name">account_followup.stat.graph</field>
            <field name="model">account_followup.stat</field>
            <field name="arch" type="xml">
