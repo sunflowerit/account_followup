@@ -19,7 +19,7 @@
 #
 ##############################################################################
 
-from odoo import fields, models
+from odoo import fields, models, api, _
 
 
 class AccountFollowupLine(models.Model):
@@ -29,7 +29,8 @@ class AccountFollowupLine(models.Model):
 
     def _get_default_template(self):
         try:
-            ref = self.env['ir.model.data'].get_object_reference('account_followup', 'email_template_account_followup_default')
+            ref = self.env['ir.model.data'].get_object_reference(
+                'account_followup', 'email_template_account_followup_default')
             template_id = ref[1]
             obj_name = ref[0]
             obj = self.env[obj_name].browse(template_id)
@@ -82,18 +83,15 @@ class AccountFollowupLine(models.Model):
     _sql_constraints = [('days_uniq', 'unique(followup_id, delay)',
                         'Days of the follow-up levels must be different')]
 
+    @api.constrains('description')
     def _check_description(self):
-        lang = self.env.user.lang
         for line in self:
             if line.description:
                 try:
-                    line.description % {'partner_name': '', 'date':'', 'user_signature': '', 'company_name': ''}
+                    line.description % {'partner_name': '', 'date': '',
+                                        'user_signature': '',
+                                        'company_name': ''}
                 except:
-                    return False
-        return True
-
-    _constraints = [
-        (_check_description, 'Your description is invalid, use the right '
-            'legend or %% if you want to use the percent character.',
-            ['description']),
-    ]
+                    raise Warning(_(
+                        'Your description is invalid, use the right legend or '
+                        '%% if you want to use the percent character.'))

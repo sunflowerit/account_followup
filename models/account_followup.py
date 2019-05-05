@@ -35,18 +35,20 @@ class AccountFollowup(models.Model):
         default=lambda self: self.env['res.company']._company_default_get(
             'account.invoice'))
     name = fields.Char(
-        related='company_id.name', string = "Name", readonly=True)
+        related='company_id.name', string="Name", readonly=True)
 
-    _sql_constraints = [('company_uniq', 'unique(company_id)', 'Only one follow-up per company is allowed')] 
+    _sql_constraints = [
+        ('company_uniq', 'unique(company_id)',
+         'Only one follow-up per company is allowed')]
 
 
 class AccountMoveLine(models.Model):
     _inherit = 'account.move.line'
 
+    @api.one
+    @api.depends('debit', 'credit')
     def _get_result(self):
-        res = 0
-        for aml in self:
-            aml.result = aml.debit - aml.credit
+        self.result = self.debit - self.credit
 
     followup_line_id = fields.Many2one(
         'account_followup.followup.line', 'Follow-up Level',

@@ -27,18 +27,6 @@ from odoo.exceptions import UserError
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
-    """def fields_view_get(self, view_id=None, view_type=None, toolbar=False, submenu=False):
-        res = super(res_partner, self).fields_view_get(view_id=view_id, view_type=view_type,
-                                                       toolbar=toolbar, submenu=submenu)
-        context = context or {}
-        if view_type == 'form' and context.get('Followupfirst'):
-            doc = etree.XML(res['arch'], parser=None, base_url=None)
-            first_node = doc.xpath("//page[@name='followup_tab']")
-            root = first_node[0].getparent()
-            root.insert(0, first_node[0])
-            res['arch'] = etree.tostring(doc, encoding="utf-8")
-        return res"""
-
     def _get_latest(self):
         res={}
         company = self.env.user.company_id
@@ -379,7 +367,6 @@ class ResPartner(models.Model):
     @api.model
     @api.depends("unreconciled_aml_ids")
     def _get_partners(self, ids):
-        #this function search for the partners linked to all account.move.line 'ids' that have been changed
         partners = set()
         for aml in self:
             if aml.partner_id:
@@ -420,24 +407,14 @@ class ResPartner(models.Model):
     payment_earliest_due_date = fields.Date(
         compute="_get_earliest_due_date", string="Earliest Due Date",
         multi="followup", fnct_search=_payment_earliest_date_search)
-    latest_followup_level_id = fields.Many2one('account_followup.followup.line', compute="_get_latest", method=True,
-            string="Latest Follow-up Level",
-            help="The maximum follow-up level", 
-            store= False,
-            #store={
-                #'res.partner': (lambda self, cr, uid, ids, c: ids,[],10),
-                #'account.move.line': (lambda self, cr, uid, ids, c: ids, ['followup_line_id'], 10),
-                #'account.move.line': (_get_partners, ['followup_line_id'], 10),
-            #}, 
-            multi="latest")
-    latest_followup_level_id_without_lit = fields.Many2one('account_followup.followup.line', compute="_get_latest", method=True, 
-            string="Latest Follow-up Level without litigation", 
-            help="The maximum follow-up level without taking into account the account move lines with litigation", 
-            store=False,
-            #store={
-                #'res.partner': (lambda self, cr, uid, ids, c: ids,[],10),
-                #'account.move.line': (lambda self, cr, uid, ids, c: ids, ['followup_line_id'], 10),
-                #'account.move.line': (_get_partners, ['followup_line_id'], 10),
-            #}, 
-            multi="latest")
-
+    latest_followup_level_id = fields.Many2one(
+        'account_followup.followup.line', compute="_get_latest", method=True,
+        string="Latest Follow-up Level", help="The maximum follow-up level",
+        multi="latest")
+    latest_followup_level_id_without_lit = fields.Many2one(
+        'account_followup.followup.line', compute="_get_latest", method=True,
+        string="Latest Follow-up Level without litigation",
+        help="The maximum follow-up level without taking into account the "
+        "account move lines with litigation",
+        store=False,
+        multi="latest")
