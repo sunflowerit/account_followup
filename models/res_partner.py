@@ -19,9 +19,10 @@
 #
 ##############################################################################
 
-from odoo import fields, models, api
-from odoo.tools.translate import _
-from odoo.exceptions import UserError
+from odoo import fields, models, api, _
+from odoo import exceptions
+from collections import defaultdict
+from odoo.tools.misc import formatLang
 
 
 class ResPartner(models.Model):
@@ -94,7 +95,8 @@ class ResPartner(models.Model):
     def do_partner_mail(self):
         ctx = self.env.context.copy()
         ctx['followup'] = True
-        # If not defined by latest follow-up level, it will be the default template if it can find it
+        # If not defined by latest follow-up level, it will be the default
+        #  template if it can find it
         mtp = self.env['mail.template']
         unknown_mails = 0
         for partner in self:
@@ -107,9 +109,14 @@ class ResPartner(models.Model):
                     if level and level.send_email and level.email_template_id and level.email_template_id.id:
                         mtp.send_mail(level.email_template_id.id, partner_to_email.id)
                     else:
-                        mail_template_id = self.env['ir.model.data'].get_object_reference(cr, uid,
-                                                        'account_followup', 'email_template_account_followup_default')
-                        mtp.send_mail(mail_template_id[1], partner_to_email.id)
+                        ir_model_data = self.env['ir.model.data']
+                        try:
+                            template_id = ir_model_data.get_object_reference(
+                                'account_followup',
+                                'email_template_account_followup_default')[1]
+                        except ValueError:
+                            template_id = False
+                        mtp.browse(template_id).send_mail(partner_to_email.id)
                 if partner not in partners_to_email:
                     self.message_post([partner.id], body=_('Overdue email sent to %s' % ', '.join(['%s <%s>' % (partner.name, partner.email) for partner in partners_to_email])))
             else:
@@ -130,28 +137,47 @@ class ResPartner(models.Model):
                 partner.payment_next_action = payment_next_action
         return unknown_mails
 
+    def _lines_get_with_partner(self, partner, company_id):
+        receivable_id = 1
+        moveline_obj = self.env['account.move.line']
+        moveline_ids = moveline_obj.search(
+            [('partner_id', '=', partner.id),
+             ('account_id.user_type_id', '=', receivable_id),
+             ('reconciled', '=', False), ('company_id', '=', company_id),
+             '|', ('date_maturity', '=', False),
+             ('date_maturity', '<=', fields.Date.today())])
+        lines_per_currency = defaultdict(list)
+        for line in moveline_ids:
+            currency = line.currency_id or line.company_id.currency_id
+            line_data = {
+                'name': line.move_id.name,
+                'ref': line.ref,
+                'date': line.date,
+                'date_maturity': line.date_maturity,
+                'balance': line.amount_currency if currency != line.company_id.currency_id else line.debit - line.credit,
+                'blocked': line.blocked,
+                'currency_id': currency,
+            }
+            lines_per_currency[currency].append(line_data)
+
+        return [{'line': lines, 'currency': currency} for currency, lines in lines_per_currency.items()]
+
     def get_followup_table_html(self):
         """ Build the html tables to be included in emails send to partners,
             when reminding them their overdue invoices.
             :param ids: [id] of the partner for whom we are building the tables
             :rtype: string
         """
-        from report import account_followup_print
-
-        assert len(ids) == 1
-        partner = self.browse(ids[0]).commercial_partner_id
-        #copy the context to not change global context. Overwrite it because _() looks for the lang in local variable 'context'.
-        #Set the language to use = the partner language
-        context = dict(self.env.context, lang=partner.lang)
+        partner = self.commercial_partner_id
         followup_table = ''
         if partner.unreconciled_aml_ids:
-            company = self.env['res.users'].browse(uid).company_id
+            company = self.env.user.company_id
             current_date = fields.Date.context_today(self)
-            rml_parse = account_followup_print.report_rappel("followup_rml_parser")
-            final_res = rml_parse._lines_get_with_partner(partner, company.id)
+            final_res = self._lines_get_with_partner(partner, company.id)
 
             for currency_dict in final_res:
-                currency = currency_dict.get('line', [{'currency_id': company.currency_id}])[0]['currency_id']
+                currency = currency_dict.get(
+                    'line', [{'currency_id': company.currency_id}])[0]['currency_id']
                 followup_table += '''
                 <table border="2" width=100%%>
                 <tr>
@@ -159,7 +185,7 @@ class ResPartner(models.Model):
                     <td>''' + _("Description") + '''</td>
                     <td>''' + _("Reference") + '''</td>
                     <td>''' + _("Due Date") + '''</td>
-                    <td>''' + _("Amount") + " (%s)" % (currency.symbol) + '''</td>
+                    <td>''' + _("Amount") + " (%s)" % currency.symbol + '''</td>
                     <td>''' + _("Lit.") + '''</td>
                 </tr>
                 ''' 
@@ -173,14 +199,20 @@ class ResPartner(models.Model):
                     if date <= current_date and aml['balance'] > 0:
                         strbegin = "<TD><B>"
                         strend = "</B></TD>"
-                    followup_table +="<TR>" + strbegin + str(aml['date']) + strend + strbegin + aml['name'] + strend + strbegin + (aml['ref'] or '') + strend + strbegin + str(date) + strend + strbegin + str(aml['balance']) + strend + strbegin + block + strend + "</TR>"
+                    followup_table += "<TR>" + strbegin + str(aml['date']) + \
+                        strend + strbegin + aml['name'] + strend + strbegin + \
+                        (aml['ref'] or '') + strend + strbegin + str(date) + \
+                        strend + strbegin + str(aml['balance']) + strend + \
+                        strbegin + block + strend + "</TR>"
 
-                total = reduce(lambda x, y: x+y['balance'], currency_dict['line'], 0.00)
+                total = reduce(
+                    lambda x, y: x+y['balance'], currency_dict['line'], 0.00)
 
-                total = rml_parse.formatLang(total, dp='Account', currency_obj=currency)
+                total = formatLang(self.env, total, currency_obj=currency)
                 followup_table += '''<tr> </tr>
                                 </table>
-                                <center>''' + _("Amount due") + ''' : %s </center>''' % (total)
+                                <center>''' + _("Amount due") + ''' : %s 
+                                    </center>''' % total
         return followup_table
 
     def write(self, vals):
@@ -208,28 +240,30 @@ class ResPartner(models.Model):
 
     def do_button_print(self):
         company_id = self.env.user.company_id.id
-        #search if the partner has accounting entries to print. If not, it may not be present in the
-        #psql view the report is based on, so we need to stop the user here.
         if not self.env['account.move.line'].search(
             [('partner_id', '=', self.id), ('account_id.user_type_id', '=', 1),
              ('full_reconcile_id', '=', False), ('company_id', '=', company_id),
              '|', ('date_maturity', '=', False),
              ('date_maturity', '<=', fields.Date.today())]
         ):
-            raise UserError(_('Error!'),_("The partner does not have any accounting entries to print in the overdue report for the current company."))
+            raise exceptions.Warning(_(
+                "The partner does not have any accounting entries to print "
+                "in the overdue report for the current company."))
         self.message_post(body=_('Printed overdue payments report'))
-        #build the id of this partner in the psql view. Could be replaced by a search with [('company_id', '=', company_id),('partner_id', '=', ids[0])]
+        # build the id of this partner in the psql view. Could be replaced by
+        # a search with [('company_id', '=', company_id),
+        # ('partner_id', '=', ids[0])]
         wizard_partner_ids = [self.id * 10000 + company_id]
-        followup_ids = self.env['account_followup.followup'].search([('company_id', '=', company_id)])
+        followup_ids = self.env['account_followup.followup'].search(
+            [('company_id', '=', company_id)])
         if not followup_ids:
-            raise UserError(
-                _('Error!'),
+            raise exceptions.Warning(
                 _("There is no followup plan defined for the current company."))
         data = {
             'date': fields.Date.today(),
             'followup_id': followup_ids[0].id,
         }
-        #call the print overdue report on this partner
+        # call the print overdue report on this partner
         return self.do_partner_print(wizard_partner_ids, data)
 
     def _get_amounts_due(self):
@@ -272,7 +306,7 @@ class ResPartner(models.Model):
         for partner in self:
             worst_due_date = False
             for aml in partner.unreconciled_aml_ids:
-                if (aml.company_id == company):
+                if aml.company_id == company:
                     date_maturity = aml.date_maturity or aml.date
                     if not worst_due_date or date_maturity < worst_due_date:
                         worst_due_date = date_maturity
@@ -366,7 +400,7 @@ class ResPartner(models.Model):
 
     @api.model
     @api.depends("unreconciled_aml_ids")
-    def _get_partners(self, ids):
+    def _get_partners(self):
         partners = set()
         for aml in self:
             if aml.partner_id:

@@ -22,6 +22,7 @@
 from odoo import fields, models
 from odoo import tools
 
+
 class account_followup_stat(models.Model):
     _name = "account_followup.stat"
     _description = "Follow-up Statistics"
