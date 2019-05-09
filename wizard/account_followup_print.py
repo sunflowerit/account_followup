@@ -26,7 +26,8 @@ from odoo import tools
 from odoo import fields, models
 from odoo.tools.translate import _
 
-class account_followup_stat_by_partner(models.Model):
+
+class AccountFollowupStatByPartner(models.Model):
     _name = "account_followup.stat.by.partner"
     _description = "Follow-up Statistics by Partner"
     _rec_name = 'partner_id'
@@ -87,7 +88,7 @@ class account_followup_stat_by_partner(models.Model):
             )""")
 
 
-class account_followup_sending_results(models.TransientModel):
+class AccountFollowupSendingResults(models.TransientModel):
     
     def do_report(self):
         return self.env.context.get('report_data')
@@ -107,7 +108,8 @@ class account_followup_sending_results(models.TransientModel):
     description = fields.Text("Description", readonly=True, default=_get_description)
     needprinting = fields.Boolean("Needs Printing", default=_get_need_printing)
 
-class account_followup_print(models.TransientModel):
+
+class AccountFollowupPrint(models.TransientModel):
     _name = 'account_followup.print'
     _description = 'Print Follow-up & Send Mail to Customers'
 
@@ -306,6 +308,5 @@ class account_followup_print(models.TransientModel):
                     partner_list.append(stat_line_id)
                 to_update[str(id)]= {'level': fups[followup_line_id][1], 'partner_id': stat_line_id}
         return {'partner_ids': partner_list, 'to_update': to_update}
-
 
 # vim:expandtab:smartindent:tabstop=4:softtabstop=4:shiftwidth=4:

@@ -37,6 +37,13 @@ class AccountFollowup(models.Model):
     name = fields.Char(
         related='company_id.name', string="Name", readonly=True)
 
+    def _ids_to_objects(self, ids):
+        all_lines = []
+        for line in self.env['account_followup.stat.by.partner'].browse(ids):
+            if line not in all_lines:
+                all_lines.append(line)
+        return all_lines
+
     _sql_constraints = [
         ('company_uniq', 'unique(company_id)',
          'Only one follow-up per company is allowed')]

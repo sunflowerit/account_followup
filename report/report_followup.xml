@@ -2,7 +2,7 @@
 <odoo>
 <template id="report_followup">
     <t t-call="report.html_container">
-        <t t-foreach="ids_to_objects(data['form']['partner_ids'])" t-as="o">
+        <t t-foreach="doc._ids_to_objects(data['form']['partner_ids'])" t-as="o">
             <t t-esc="setLang(o.partner_id.lang)"/>
             <t t-call="report.external_layout">
                 <div class="page">
@@ -15,9 +15,9 @@
                     </div>
 
                     <p>
-                        Document: Relevé de compte du client<br/>
+                        Document: Customer Statement of account<br/>
                         Date: <span t-esc="formatLang(data['form']['date'], date=True)"/><br/>
-                        Référence du client: <span t-field="o.partner_id.ref"/>
+                        Customer Reference: <span t-field="o.partner_id.ref"/>
                     </p>
 
                     <p t-raw="get_text(o,data['form']['followup_id']).replace('\n', '&lt;br&gt;')"/>
@@ -26,11 +26,11 @@
                         <table class="table table-condensed" style="margin-top: 50px;">
                             <thead>
                                 <tr>
-                                    <th>Date de facture</th>
+                                    <th>Date</th>
                                     <th>Description</th>
                                     <th class="text-center">Ref</th>
-                                    <th class="text-center">Date d'échéance</th>
-                                    <th class="text-right">Montant</th>
+                                    <th class="text-center">Due Date</th>
+                                    <th class="text-right">Amount</th>
                                     <th class="text-center">Li.</th>
                                 </tr>
                             </thead>
