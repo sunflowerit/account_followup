@@ -88,8 +88,11 @@ class ResPartner(models.Model):
              'model': 'account_followup.followup',
              'form': data
         }
+        followup_id = datas['form']['followup_id']
+        if followup_id:
+            record = self.env['account_followup.followup'].browse(followup_id)
         return self.env['report'].get_action(
-            [], 'account_followup.report_followup', data=datas)
+            record, 'account_followup.report_followup')
 
     @api.cr_uid_ids_context
     def do_partner_mail(self):

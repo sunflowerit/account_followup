@@ -56,7 +56,6 @@ Note that if you want to check the follow-up level for a given partner/account e
         # 'security/ir.model.access.csv',
         'report/account_followup_report.xml',
         'report/report_followup.xml',
-        'report/account_followup_reports.xml',
         'data/account_followup_data.xml',
         'views/account_followup_view.xml',
         'views/account_followup_customers.xml',

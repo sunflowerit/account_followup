@@ -36,20 +36,22 @@ class AccountFollowupStatByPartner(models.Model):
     def _get_invoice_partner_id(self):
         result = {}
         for rec in self:
-            result[rec.id] = rec.partner_id.address_get(adr_pref=['invoice']).get('invoice', rec.partner_id.id)
+            result[rec.id] = rec.partner_id.address_get(
+                adr_pref=['invoice']).get('invoice', rec.partner_id.id)
         return result
-
 
     partner_id = fields.Many2one('res.partner', 'Partner', readonly=True)
     date_move = fields.Date('First move', readonly=True)
     date_move_last = fields.Date('Last move', readonly=True)
     date_followup = fields.Date('Latest follow-up', readonly=True)
-    max_followup_id = fields.Many2one('account_followup.followup.line',
-                                    'Max Follow Up Level', readonly=True, ondelete="cascade")
+    max_followup_id = fields.Many2one(
+        'account_followup.followup.line', 'Max Follow Up Level',
+        readonly=True, ondelete="cascade")
     balance = fields.Float('Balance', readonly=True)
     company_id = fields.Many2one('res.company', 'Company', readonly=True)
-    invoice_partner_id = fields.Many2one(compute="_get_invoice_partner_id", relation='res.partner', string='Invoice Address')
-
+    invoice_partner_id = fields.Many2one(
+        'res.partner', compute="_get_invoice_partner_id",
+        string='Invoice Address')
 
     _depends = {
         'account.move.line': [
@@ -115,7 +117,7 @@ class AccountFollowupPrint(models.TransientModel):
 
     def _get_followup(self):
         if self.env.context.get('active_model', 'ir.ui.menu') == 'account_followup.followup':
-            return  self.env.context.get('active_id', False)
+            return self.env.context.get('active_id', False)
         company_id = self.env.user.company_id.id
         followp_id = self.env['account_followup.followup'].search([('company_id', '=', company_id)])
         return followp_id and followp_id[0] or False

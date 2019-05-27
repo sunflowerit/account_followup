@@ -1,11 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-<template id="report_followup">
-    <t t-call="report.html_container">
-        <t t-foreach="doc._ids_to_objects(data['form']['partner_ids'])" t-as="o">
-            <t t-esc="setLang(o.partner_id.lang)"/>
-            <t t-call="report.external_layout">
-                <div class="page">
+    <report
+        id="action_report_followup"
+        model="account_followup.followup"
+        string="Follow-up Report"
+        report_type="qweb-pdf"
+        name="account_followup.report_followup"
+        file="account_followup.report_followup"
+    />
+
+    <template id="report_followup">
+        <t t-call="report.external_layout">
+            <t t-foreach="docs" t-as="doc">
+                <t t-set="lines" t-value="doc._ids_to_objects()"/>
+                <t t-foreach="lines" t-as="o">
+                    <div class="page">
                     <div class="row">
                         <div class="col-xs-5 col-xs-offset-7">
                             <div t-field="o.invoice_partner_id"
@@ -16,13 +25,13 @@
 
                     <p>
                         Document: Customer Statement of account<br/>
-                        Date: <span t-esc="formatLang(data['form']['date'], date=True)"/><br/>
+                        Date: <span t-esc="context_timestamp(datetime.datetime.now()).strftime('%Y-%m-%d')"/><br/>
                         Customer Reference: <span t-field="o.partner_id.ref"/>
                     </p>
 
-                    <p t-raw="get_text(o,data['form']['followup_id']).replace('\n', '&lt;br&gt;')"/>
+                    <p t-esc="doc._get_text(o).replace('\n', '&lt;br&gt;')"/>
 
-                    <t t-foreach="getLines(o)" t-as="cur_lines">
+                    <t t-foreach="doc._get_lines(o)" t-as="cur_lines">
                         <table class="table table-condensed" style="margin-top: 50px;">
                             <thead>
                                 <tr>
@@ -36,22 +45,22 @@
                             </thead>
                             <tbody>
                                 <tr t-foreach="cur_lines['line']" t-as="line">
-                                    <td><span t-esc="formatLang(line['date'],date = True)"/></td>
+                                    <td><span t-esc="line['date']"/></td>
                                     <td><span t-esc="line['name']"/></td>
                                     <td><span t-esc="line['ref']"/></td>
-                                    <td class="text-center"><span t-esc="line['date_maturity'] and formatLang(line['date_maturity'], date=True)"/></td>
-                                    <td class="text-right"><span t-esc="formatLang(line['balance'], currency_obj=line['currency_id'])"/></td>
+                                    <td class="text-center"><span t-esc="line['date_maturity']"/></td>
+                                    <td class="text-right"><span t-esc="line['balance']"/></td>
                                     <td><span t-esc="line['blocked'] and 'X' or ''"/></td>
                                 </tr>
                             </tbody>
                         </table>
 
                         <t t-set="total" t-value="reduce(lambda x,y: x+y['balance'], cur_lines['line'], 0.00)"/>
-                        <p>Total: <span t-esc="formatLang(total, currency_obj=cur_lines['currency'])"/></p>
+                        <p>Total: <span t-esc="total"/></p>
                     </t>
-            </div>
+                </div>
+                </t>
             </t>
         </t>
-    </t>
-</template>
+    </template>
 </odoo>
