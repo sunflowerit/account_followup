@@ -23,7 +23,7 @@ import datetime
 import time
 
 from odoo import tools
-from odoo import fields, models
+from odoo import fields, models, api
 from odoo.tools.translate import _
 
 
@@ -122,21 +122,32 @@ class AccountFollowupPrint(models.TransientModel):
         followp_id = self.env['account_followup.followup'].search([('company_id', '=', company_id)])
         return followp_id and followp_id[0] or False
 
-    date = fields.Date('Follow-up Sending Date', required=True, 
-                            help="This field allow you to select a forecast date to plan your follow-ups", default=lambda *a: time.strftime('%Y-%m-%d'))
-    followup_id = fields.Many2one('account_followup.followup', 'Follow-Up', required=True, readonly=True,default=_get_followup)
-    partner_ids = fields.Many2many('account_followup.stat.by.partner', 'partner_stat_rel', 
-                                        'osv_memory_id', 'partner_id', 'Partners', required=True)
-    company_id = fields.Many2one(related='followup_id.company_id', relation='res.company', store=True, readonly=True)
+    date = fields.Date(
+        'Follow-up Sending Date', required=True,
+        help="This field allow you to select a forecast date to plan your "
+        "follow-ups", default=lambda *a: time.strftime('%Y-%m-%d'))
+    followup_id = fields.Many2one(
+        'account_followup.followup', 'Follow-Up', required=True,
+        readonly=True, default=_get_followup)
+    partner_ids = fields.Many2many(
+        'account_followup.stat.by.partner', 'partner_stat_rel',
+        'osv_memory_id', 'partner_id', 'Partners', required=True)
+    company_id = fields.Many2one(
+        related='followup_id.company_id', relation='res.company',
+        store=True, readonly=True)
     email_conf = fields.Boolean('Send Email Confirmation')
-    email_subject = fields.Char('Email Subject', size=64, default=_('Invoices Reminder'))
-    partner_lang = fields.Boolean('Send Email in Partner Language',
-                                    help='Do not change message text, if you want to send email in partner language, or configure from company',
-                                    default=True)
+    email_subject = fields.Char(
+        'Email Subject', size=64, default=_('Invoices Reminder'))
+    partner_lang = fields.Boolean(
+        'Send Email in Partner Language',
+        help='Do not change message text, if you want to send email in partner'
+        ' language, or configure from company', default=True)
     email_body = fields.Text('Email Body', default="")
     summary = fields.Text('Summary', readonly=True)
-    test_print = fields.Boolean('Test Print', 
-                                     help='Check if you want to print follow-ups without changing follow-up level.')
+    test_print = fields.Boolean(
+        'Test Print',
+        help='Check if you want to print follow-ups without changing '
+        'follow-up level.')
     
     def process_partners(self, partner_ids, data):
         partner_obj = self.env['res.partner']
@@ -213,25 +224,27 @@ class AccountFollowupPrint(models.TransientModel):
                 part.action_done()
         return len(partners_to_clear)
 
+    @api.multi
     def do_process(self):
         context = dict(self.env.context or {})
 
-        #Get partners
-        tmp = self._get_partners_followp(self)
+        # Get partners
+        tmp = self._get_partners_followup()
         partner_list = tmp['partner_ids']
         to_update = tmp['to_update']
         date = self.date
-        #data = self
-        data = {"date":self.date, "followup_id":self.followup_id.id}
-        #data['followup_id'] = data['followup_id'][0]
+        data = {
+            "date": self.date,
+            "followup_id": self.followup_id.id,
+        }
 
-        #Update partners
+        # Update partners
         self.do_update_followup_level(to_update, partner_list, date)
-        #process the partners (send mails...)
+        # process the partners (send mails...)
         restot_context = context.copy()
         restot = self.process_partners(partner_list, data)
         context.update(restot_context)
-        #clear the manual actions if nothing is due anymore
+        # clear the manual actions if nothing is due anymore
         nbactionscleared = self.clear_manual_actions(partner_list)
         if nbactionscleared > 0:
             restot['resulttext'] = restot['resulttext'] + "<li>" +  _("%s partners have no credits and as such the action is cleared") %(str(nbactionscleared)) + "</li>" 
@@ -247,7 +260,7 @@ class AccountFollowupPrint(models.TransientModel):
             'context': context,
             'view_mode': 'tree,form',
             'res_model': 'account_followup.sending.results',
-            'views': [(resource_id,'form')],
+            'views': [(resource_id, 'form')],
             'type': 'ir.actions.act_window',
             'target': 'new',
             }
@@ -255,9 +268,9 @@ class AccountFollowupPrint(models.TransientModel):
     def _get_msg(self):
         return self.env['res.users'].browse(self.env.user).company_id.follow_up_msg
 
-    def _get_partners_followp(self, followup):
-        data = followup
-        company_id = data.company_id.id
+    def _get_partners_followup(self):
+
+        company_id = self.company_id.id
 
         self.env.cr.execute(
             "SELECT l.partner_id, l.followup_line_id,l.date_maturity, l.date, l.id "\
@@ -274,8 +287,8 @@ class AccountFollowupPrint(models.TransientModel):
         move_lines = self.env.cr.fetchall()
         old = None
         fups = {}
-        fup_id = 'followup_id' in self.env.context and self.env.context['followup_id'] or data.followup_id.id
-        date = 'date' in self.env.context and self.env.context['date'] or data.date
+        fup_id = 'followup_id' in self.env.context and self.env.context['followup_id'] or self.followup_id.id
+        date = 'date' in self.env.context and self.env.context['date'] or self.date
 
         current_date = datetime.date(*time.strptime(date,
             '%Y-%m-%d')[:3])

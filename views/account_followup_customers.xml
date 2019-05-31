@@ -97,14 +97,14 @@
                         </group>    
                         <div class="oe_button_box" name="followup_button">
                             <button name="do_button_print" class="oe_highlight" type="object" string="Print Reminders" groups="account.group_account_user"
-                                help="Print overdue payments report independent of follow-up line" attrs="{'invisible':[('payment_amount_due', '&lt;=', 0.0)]}" />
+                                help="Print overdue payments report independent of follow-up line" attrs="{'invisible':[('payment_amount_due', '&lt;=', 0.0)]}" /> |
                             <button name="do_partner_mail" class="oe_highlight" type="object" string="Send Reminder Email" groups="account.group_account_user"
                                 help="If not specified by the latest follow-up level, it will send from the default email template" attrs="{'invisible':[('payment_amount_due', '&lt;=', 0.0)]}"/>
                         </div>
                         <label for="payment_note" class="oe_edit_only"/>
                         <field name="payment_note" placeholder="He said the problem was temporary and promised to pay 50%% before 15th of May, balance before 1st of July."/>
                         <p class="oe_grey">
-                            Customer's transaction history. You can check "No tracking"
+                            Customer's transaction history. You can check "No Follow-up"
                             to exclude this transaction from future reminders.
                         </p>
                         <field name="unreconciled_aml_ids">
