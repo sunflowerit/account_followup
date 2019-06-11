@@ -1,23 +1,6 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-2010 Tiny SPRL (<http://tiny.be>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Copyright 2004-2010 Tiny SPRL (<http://tiny.be>).
+# License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
 from odoo import fields, models, api, _
 
@@ -52,12 +35,12 @@ class AccountFollowupLine(models.Model):
     description = fields.Text('Printed Message', translate=True, default="""
         Dear %(partner_name)s,
 
-        Exception made if there was a mistake of ours, it seems that the 
-        following amount stays unpaid. Please, take appropriate measures in 
+        Exception made if there was a mistake of ours, it seems that the
+        following amount stays unpaid. Please, take appropriate measures in
         order to carry out this payment in the next 8 days.
 
-        Would your payment have been carried out after this mail was sent, 
-        please ignore this message. Do not hesitate to contact our accounting 
+        Would your payment have been carried out after this mail was sent,
+        please ignore this message. Do not hesitate to contact our accounting
         department.
 
         Best Regards,
@@ -91,7 +74,7 @@ class AccountFollowupLine(models.Model):
                     line.description % {'partner_name': '', 'date': '',
                                         'user_signature': '',
                                         'company_name': ''}
-                except:
+                except ValueError:
                     raise Warning(_(
                         'Your description is invalid, use the right legend or '
                         '%% if you want to use the percent character.'))

@@ -1,23 +1,6 @@
 # -*- coding: utf-8 -*-
-##############################################################################
-#
-#    OpenERP, Open Source Management Solution
-#    Copyright (C) 2004-2010 Tiny SPRL (<http://tiny.be>).
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU Affero General Public License as
-#    published by the Free Software Foundation, either version 3 of the
-#    License, or (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU Affero General Public License for more details.
-#
-#    You should have received a copy of the GNU Affero General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-#
-##############################################################################
+# Copyright 2004-2010 Tiny SPRL (<http://tiny.be>).
+# License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl).
 
 from odoo import fields, models, api, _
 from odoo import exceptions
@@ -28,58 +11,70 @@ from odoo.tools.misc import formatLang
 class ResPartner(models.Model):
     _inherit = "res.partner"
 
+    @api.model
+    @api.depends('unreconciled_aml_ids')
     def _get_latest(self):
-        res={}
         company = self.env.user.company_id
-        for partner in self:
-            amls = partner.unreconciled_aml_ids
+        for this in self:
             latest_date = False
             latest_level = False
             latest_days = False
             latest_level_without_lit = False
             latest_days_without_lit = False
-            for aml in amls:
-                if (aml.company_id == company) and (aml.followup_line_id != False) and (not latest_days or latest_days < aml.followup_line_id.delay):
+            for aml in this.unreconciled_aml_ids:
+                if aml.company_id != company:
+                    continue
+                if aml.followup_line_id and (
+                        not latest_days
+                        or latest_days < aml.followup_line_id.delay):
                     latest_days = aml.followup_line_id.delay
                     latest_level = aml.followup_line_id.id
-                if (aml.company_id == company) and (not latest_date or latest_date < aml.followup_date):
+                if not latest_date or latest_date < aml.followup_date:
                     latest_date = aml.followup_date
-                if (aml.company_id == company) and (aml.blocked == False) and (aml.followup_line_id != False and 
-                            (not latest_days_without_lit or latest_days_without_lit < aml.followup_line_id.delay)):
-                    latest_days_without_lit =  aml.followup_line_id.delay
+                if not aml.blocked and aml.followup_line_id and (
+                            not latest_days_without_lit
+                            or latest_days_without_lit <
+                            aml.followup_line_id.delay
+                        ):
+                    latest_days_without_lit = aml.followup_line_id.delay
                     latest_level_without_lit = aml.followup_line_id.id
-            res[partner.id] = {'latest_followup_date': latest_date,
-                               'latest_followup_level_id': latest_level,
-                               'latest_followup_level_id_without_lit': latest_level_without_lit}
-        return res
+            this.latest_followup_date = latest_date
+            this.latest_followup_level_id = latest_level
+            this.latest_followup_level_id_without_lit = \
+                latest_level_without_lit
 
-    @api.cr_uid_ids_context
-    def do_partner_manual_action(self, partner_ids): 
-        #partner_ids -> res.partner
-        for partner in self.browse(partner_ids):
-            #Check action: check if the action was not empty, if not add
-            action_text= ""
-            if partner.payment_next_action:
-                action_text = (partner.payment_next_action or '') + "\n" + (partner.latest_followup_level_id_without_lit.manual_action_note or '')
+    @api.multi
+    def do_partner_manual_action(self):
+        for this in self:
+            if this.payment_next_action:
+                action_text = "{}\n{}".format(
+                    this.payment_next_action or '',
+                    this.latest_followup_level_id_without_lit
+                    .manual_action_note or ''
+                )
             else:
-                action_text = partner.latest_followup_level_id_without_lit.manual_action_note or ''
+                action_text = \
+                    this.latest_followup_level_id_without_lit \
+                    .manual_action_note or ''
 
-            #Check date: only change when it did not exist already
-            action_date = partner.payment_next_action_date or fields.Date.context_today(self)
+            # Check date: only change when it did not exist already
+            action_date = this.payment_next_action_date \
+                or fields.Date.context_today(self)
 
-            # Check responsible: if partner has not got a responsible already, take from follow-up
-            responsible_id = False
-            if partner.payment_responsible_id:
-                responsible_id = partner.payment_responsible_id.id
+            # Check responsible: if partner has not got a responsible
+            # already, take from follow-up
+            if this.payment_responsible_id:
+                responsible_id = this.payment_responsible_id
             else:
-                p = partner.latest_followup_level_id_without_lit.manual_action_responsible_id
+                p = this.latest_followup_level_id_without_lit \
+                    .manual_action_responsible_id
                 responsible_id = p and p.id or False
-            partner.payment_next_action_date = action_date
-            partner.payment_next_action = action_text
-            partner.payment_responsible_id = responsible_id
+            this.payment_next_action_date = action_date
+            this.payment_next_action = action_text
+            this.payment_responsible_id = responsible_id
 
     def do_partner_print(self, wizard_partner_ids, data):
-        #wizard_partner_ids are ids from special view, not from res.partner
+        # wizard_partner_ids are ids from special view, not from res.partner
         if not wizard_partner_ids:
             return {}
         data['partner_ids'] = wizard_partner_ids
@@ -94,50 +89,56 @@ class ResPartner(models.Model):
         return self.env['report'].get_action(
             record, 'account_followup.report_followup')
 
-    @api.cr_uid_ids_context
+    @api.multi
     def do_partner_mail(self):
-        ctx = self.env.context.copy()
-        ctx['followup'] = True
         # If not defined by latest follow-up level, it will be the default
         #  template if it can find it
         mtp = self.env['mail.template']
         unknown_mails = 0
-        for partner in self:
-            partners_to_email = [child for child in partner.child_ids if child.type == 'invoice' and child.email]
-            if not partners_to_email and partner.email:
-                partners_to_email = [partner]
+        for this in self:
+            partners_to_email = this.child_ids.filtered(
+                lambda child: child.type == 'invoice' and child.email)
+            if not partners_to_email and this.email:
+                partners_to_email = this
             if partners_to_email:
-                level = partner.latest_followup_level_id_without_lit
+                level = this.latest_followup_level_id_without_lit
                 for partner_to_email in partners_to_email:
-                    if level and level.send_email and level.email_template_id and level.email_template_id.id:
-                        mtp.send_mail(level.email_template_id.id, partner_to_email.id)
+                    if level and level.send_email \
+                            and level.email_template_id \
+                            and level.email_template_id.id:
+                        mtp.send_mail(
+                            level.email_template_id.id, partner_to_email.id)
                     else:
-                        ir_model_data = self.env['ir.model.data']
-                        try:
-                            template_id = ir_model_data.get_object_reference(
-                                'account_followup',
-                                'email_template_account_followup_default')[1]
-                        except ValueError:
-                            template_id = False
-                        mtp.browse(template_id).send_mail(partner_to_email.id)
-                if partner not in partners_to_email:
-                    self.message_post([partner.id], body=_('Overdue email sent to %s' % ', '.join(['%s <%s>' % (partner.name, partner.email) for partner in partners_to_email])))
+                        template = self.env.ref(
+                            'account_followup'
+                            '.email_template_account_followup_default')
+                        template.send_mail(partner_to_email.id)
+                if this not in partners_to_email:
+                    this.message_post(
+                        body=_('Overdue email sent to %s' % ', '.join(
+                            ['%s <%s>' % (partner.name, partner.email)
+                             for partner in partners_to_email])))
             else:
                 unknown_mails = unknown_mails + 1
-                action_text = _("Email not sent because of email address of partner not filled in")
-                if partner.payment_next_action_date:
-                    payment_action_date = min(fields.Date.context_today(self), partner.payment_next_action_date)
+                action_text = _(
+                    "Email not sent because of email address "
+                    "of partner not filled in")
+                if this.payment_next_action_date:
+                    payment_action_date = min(
+                        fields.Date.context_today(self),
+                        partner.payment_next_action_date)
                 else:
                     payment_action_date = fields.Date.context_today(self)
-                if partner.payment_next_action:
-                    if action_text not in partner.payment_next_action:
-                        payment_next_action = partner.payment_next_action + " \n" + action_text
+                if this.payment_next_action:
+                    if action_text not in this.payment_next_action:
+                        payment_next_action = this.payment_next_action \
+                            + " \n" + action_text
                     else:
-                        payment_next_action = partner.payment_next_action
+                        payment_next_action = this.payment_next_action
                 else:
                     payment_next_action = action_text
-                partner.payment_next_action_date = payment_action_date
-                partner.payment_next_action = payment_next_action
+                this.payment_next_action_date = payment_action_date
+                this.payment_next_action = payment_next_action
         return unknown_mails
 
     def _lines_get_with_partner(self, partner, company_id):
@@ -157,13 +158,19 @@ class ResPartner(models.Model):
                 'ref': line.ref,
                 'date': line.date,
                 'date_maturity': line.date_maturity,
-                'balance': line.amount_currency if currency != line.company_id.currency_id else line.debit - line.credit,
+                'balance':
+                    line.amount_currency
+                    if currency != line.company_id.currency_id
+                    else line.debit - line.credit,
                 'blocked': line.blocked,
                 'currency_id': currency,
             }
             lines_per_currency[currency].append(line_data)
 
-        return [{'line': lines, 'currency': currency} for currency, lines in lines_per_currency.items()]
+        return [{
+            'line': lines,
+            'currency': currency
+        } for currency, lines in lines_per_currency.items()]
 
     def get_followup_table_html(self):
         """ Build the html tables to be included in emails send to partners,
@@ -365,41 +372,42 @@ class ResPartner(models.Model):
         self.env.cr.execute(query, query_args)
         res = self.env.cr.fetchall()
         if not res:
-            return [('id','=','0')]
-        return [('id','in', [x[0] for x in res])]
+            return [('id', '=', '0')]
+        return [('id', 'in', [x[0] for x in res])]
 
     def _payment_earliest_date_search(self, obj, name, args):
         if not args:
             return []
-        #company_id = self.env['res.users'].browse(uid).company_id.id
         company_id = self.env.user.company_id.id
         having_where_clause = ' AND '.join(map(lambda x: '(MIN(l.date_maturity) %s %%s)' % (x[1]), args))
         having_values = [x[2] for x in args]
         query = self.env['account.move.line']._query_get(context=self.env.context)
-        self.env.cr.execute('SELECT partner_id FROM account_move_line l '\
-                    'WHERE account_id IN '\
-                        '(SELECT id FROM account_account '\
-                        'WHERE user_type_id=1) '\
-                    'AND l.company_id = %s '
-                    'AND full_reconcile_id IS NULL '\
-                    'AND '+query+' '\
-                    'AND partner_id IS NOT NULL '\
-                    'GROUP BY partner_id HAVING '+ having_where_clause,
-                     [company_id] + having_values)
+        self.env.cr.execute(
+            'SELECT partner_id FROM account_move_line l '
+            'WHERE account_id IN '
+            '(SELECT id FROM account_account '
+            'WHERE user_type_id=1) '
+            'AND l.company_id = %s '
+            'AND full_reconcile_id IS NULL '
+            'AND ' + query + ' '
+            'AND partner_id IS NOT NULL '
+            'GROUP BY partner_id HAVING ' + having_where_clause,
+            [company_id] + having_values)
         res = self.env.cr.fetchall()
         if not res:
-            return [('id','=','0')]
-        return [('id','in', [x[0] for x in res])]
+            return [('id', '=', '0')]
+        return [('id', 'in', [x[0] for x in res])]
 
     def _payment_due_search(self, obj, name, args):
         if not args:
             return []
-        query, query_args = self._get_followup_overdue_query(args, overdue_only=False)
+        query, query_args = self._get_followup_overdue_query(
+            args, overdue_only=False)
         self.env.cr.execute(query, query_args)
         res = self.env.cr.fetchall()
         if not res:
-            return [('id','=','0')]
-        return [('id','in', [x[0] for x in res])]
+            return [('id', '=', '0')]
+        return [('id', 'in', [x[0] for x in res])]
 
     @api.model
     @api.depends("unreconciled_aml_ids")
