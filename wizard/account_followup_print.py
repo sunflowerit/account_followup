@@ -118,12 +118,13 @@ class AccountFollowupPrint(models.TransientModel):
                 line.followup_date = date
                 #self.env['account.move.line'].write([int(id)], {'followup_line_id': to_update[id]['level'], 'followup_date': date})
 
-    @api.multi
-    def clear_manual_actions(self):
+    @api.model
+    def clear_manual_actions(self, partner_ids):
         # Partnerlist is list to exclude
         # Will clear the actions of partners that have no due payments anymore
         stat_obj = self.env['account_followup.stat.by.partner']
-        partner_list_ids = stat_obj.browse(self.ids).mapped('partner_id').ids
+        partner_list_ids = stat_obj.browse(partner_ids).mapped(
+            'partner_id').ids
         if not partner_list_ids:
             partner_list_ids = [-1]
         partner_ids = self.env['res.partner'].search([
@@ -160,7 +161,7 @@ class AccountFollowupPrint(models.TransientModel):
         restot = self.process_partners(partners.ids, data)
         context.update(restot_context)
         # clear the manual actions if nothing is due anymore
-        nbactionscleared = partners.clear_manual_actions()
+        nbactionscleared = self.clear_manual_actions(partners.ids)
         if nbactionscleared > 0:
             restot['resulttext'] = \
                 restot['resulttext'] + \
