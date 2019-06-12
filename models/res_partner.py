@@ -323,7 +323,7 @@ class ResPartner(models.Model):
                 partner.payment_earliest_due_date = worst_due_date
         return worst_due_date
 
-    def _get_followup_overdue_query(self, args, overdue_only=False):
+    def _get_followup_overdue_query(self, operator, value, overdue_only=False):
         """
         This function is used to build the query and arguments to use when
         making a search on functional fields
@@ -343,10 +343,9 @@ class ResPartner(models.Model):
         """
         company_id = self.env.user.company_id.id
         having_where_clause = ' AND '.join(
-            map(lambda x: '(SUM(bal2) %s %%s)' % (x[1]), args))
-        having_values = [x[2] for x in args]
-        query = self.env['account.move.line']._query_get(
-            context=self.env.context)
+            map(lambda x: '(SUM(bal2) %s %%s)' % (operator), operator))
+        having_where_clause = str(having_where_clause)
+        having_values = [value]
         overdue_only_str = overdue_only and 'AND date_maturity <= NOW()' or ''
         return ('''SELECT pid AS partner_id, SUM(bal2) FROM
                     (SELECT CASE WHEN bal IS NOT NULL THEN bal
@@ -358,30 +357,31 @@ class ResPartner(models.Model):
                             WHERE user_type_id=1)
                     ''' + overdue_only_str + '''
                     AND full_reconcile_id IS NULL
-                    AND company_id = %s
-                    AND ''' + query + ''') AS l
+                    AND company_id = %s) AS l
                     RIGHT JOIN res_partner p
                     ON p.id = partner_id ) AS pl
                     GROUP BY pid HAVING ''' + having_where_clause, [company_id]
                         + having_values)
 
-    def _payment_overdue_search(self, obj, name, args):
-        if not args:
+    @api.model
+    def _payment_overdue_search(self, operator, value):
+        if not operator:
             return []
-        query, query_args = self._get_followup_overdue_query(args, overdue_only=True)
+        query, query_args = self._get_followup_overdue_query(
+            operator, value, overdue_only=True)
         self.env.cr.execute(query, query_args)
         res = self.env.cr.fetchall()
         if not res:
             return [('id', '=', '0')]
         return [('id', 'in', [x[0] for x in res])]
 
-    def _payment_earliest_date_search(self, obj, name, args):
-        if not args:
+    @api.model
+    def _payment_earliest_date_search(self, operator, value):
+        if not operator:
             return []
         company_id = self.env.user.company_id.id
-        having_where_clause = ' AND '.join(map(lambda x: '(MIN(l.date_maturity) %s %%s)' % (x[1]), args))
-        having_values = [x[2] for x in args]
-        query = self.env['account.move.line']._query_get(context=self.env.context)
+        having_where_clause = ' AND '.join(map(lambda x: '(MIN(l.date_maturity) %s %%s)' % (operator), operator))
+        having_values = [value]
         self.env.cr.execute(
             'SELECT partner_id FROM account_move_line l '
             'WHERE account_id IN '
@@ -389,7 +389,6 @@ class ResPartner(models.Model):
             'WHERE user_type_id=1) '
             'AND l.company_id = %s '
             'AND full_reconcile_id IS NULL '
-            'AND ' + query + ' '
             'AND partner_id IS NOT NULL '
             'GROUP BY partner_id HAVING ' + having_where_clause,
             [company_id] + having_values)
@@ -398,11 +397,12 @@ class ResPartner(models.Model):
             return [('id', '=', '0')]
         return [('id', 'in', [x[0] for x in res])]
 
-    def _payment_due_search(self, obj, name, args):
-        if not args:
+    @api.model
+    def _payment_due_search(self, operator, value):
+        if not operator:
             return []
         query, query_args = self._get_followup_overdue_query(
-            args, overdue_only=False)
+            operator, value, overdue_only=False)
         self.env.cr.execute(query, query_args)
         res = self.env.cr.fetchall()
         if not res:
@@ -445,10 +445,10 @@ class ResPartner(models.Model):
         multi="latest")
     payment_amount_due = fields.Float(
         compute="_get_amounts_due", string="Amount Due", multi="followup",
-        fnct_search=_payment_due_search)
+        search=_payment_due_search)
     payment_amount_overdue = fields.Float(
         compute="_get_amounts_overdue", string="Amount Overdue",
-        multi="followup", fnct_search=_payment_overdue_search)
+        multi="followup", search=_payment_overdue_search)
     payment_earliest_due_date = fields.Date(
         compute="_get_earliest_due_date", string="Earliest Due Date",
         multi="followup", fnct_search=_payment_earliest_date_search)

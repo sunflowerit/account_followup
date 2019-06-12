@@ -13,8 +13,8 @@
         'sale',
     ],
     'data': [
-        # 'security/account_followup_security.xml',
-        # 'security/ir.model.access.csv',
+        'security/account_followup_security.xml',
+        'security/ir.model.access.csv',
         'report/account_followup_report.xml',
         'report/report_followup.xml',
         'data/account_followup_data.xml',
