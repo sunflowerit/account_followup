@@ -90,7 +90,7 @@ class ResPartner(models.Model):
             record, 'account_followup.report_followup')
 
     @api.multi
-    def do_partner_mail(self):
+    def do_button_partner_mail(self):
         # If not defined by latest follow-up level, it will be the default
         #  template if it can find it
         mtp = self.env['mail.template']
