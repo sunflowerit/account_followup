@@ -6,10 +6,27 @@ from odoo import fields, models, api, _
 from odoo import exceptions
 from collections import defaultdict
 from odoo.tools.misc import formatLang
+from lxml import etree
 
 
 class ResPartner(models.Model):
     _inherit = "res.partner"
+
+    @api.model
+    def fields_view_get(self, view_id=None, view_type=None,
+                        toolbar=False, submenu=False):
+        """ Show Payment followup tab as first and active tab on form view"""
+        res = super(ResPartner, self).fields_view_get(
+            view_id=view_id, view_type=view_type, toolbar=toolbar,
+            submenu=submenu)
+        context = dict(self.env.context or {})
+        if view_type == 'form' and context.get('Followupfirst'):
+            doc = etree.XML(res['arch'], parser=None, base_url=None)
+            first_node = doc.xpath("//page[@name='followup_tab']")
+            root = first_node[0].getparent()
+            root.insert(0, first_node[0])
+            res['arch'] = etree.tostring(doc, encoding="utf-8")
+        return res
 
     @api.model
     @api.depends('unreconciled_aml_ids')
